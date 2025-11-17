@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <inttypes.h>
 #include "include/strb.h"
 #include "include/utils.h"
 #include "include/types.h"
@@ -49,7 +48,7 @@ Type type_cstring(CONSTNESS constant, size_t index) {
     };
 }
 
-Type type_integer(TypeKind kind, CONSTNESS constant, size_t index) {
+Type type_number(TypeKind kind, CONSTNESS constant, size_t index) {
     return (Type){
         .kind = kind,
         .constant = constant,

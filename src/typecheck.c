@@ -388,9 +388,9 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
 // returns TkNone if no default
 Type tc_default_untyped_type(Type type) {
     if (type.kind == TkUntypedInt) {
-        return type_integer(TkI64, TYPEVAR, 0);
+        return type_number(TkI64, TYPEVAR, 0);
     } else if (type.kind == TkUntypedFloat) {
-        return type_integer(TkF64, TYPEVAR, 0);
+        return type_number(TkF64, TYPEVAR, 0);
     }
 
     return type_none();
@@ -633,9 +633,6 @@ bool tc_is_unsigned(Sema *sema, Expr expr) {
         case TkU32:
         case TkU64:
         case TkUsize:
-        case TkF32:
-        case TkF64:
-        case TkUntypedFloat:
         case TkUntypedInt:
             return true;
         case TkI8:
@@ -643,6 +640,9 @@ bool tc_is_unsigned(Sema *sema, Expr expr) {
         case TkI32:
         case TkI64:
         case TkIsize:
+        case TkF32:
+        case TkF64:
+        case TkUntypedFloat:
             return false;
         case TkPoison:
             return false;

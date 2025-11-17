@@ -347,7 +347,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
         case TkString: {
             enum { StringFieldsLen = 2 };
             Expr StringFields[StringFieldsLen] = {
-                expr_ident("len", type_integer(TkUsize, TYPECONST, cursor_idx), cursor_idx),
+                expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx),
                 expr_ident("ptr", type_cstring(TYPECONST, cursor_idx), cursor_idx),
             };
 
@@ -359,7 +359,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
             elog(sema, cursor_idx, "string does not have field \"%s\"", fieldname);
         } break;
         case TkSlice: {
-            Expr slice_len = expr_ident("len", type_integer(TkUsize, TYPECONST, cursor_idx), cursor_idx);
+            Expr slice_len = expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx);
             if (streq(fieldname, slice_len.ident)) {
                 return slice_len;
             }
@@ -368,7 +368,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
         case TkArray: {
             enum { ArrayFieldsLen = 2 };
             Expr ArrayFields[ArrayFieldsLen] = {
-                expr_ident("len", type_integer(TkUsize, TYPECONST, cursor_idx), cursor_idx),
+                expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx),
                 // NOTE: typeof(array.ptr) == cstring?
                 // this is definitely a bug
                 // TODO: fixme
@@ -602,7 +602,7 @@ void sema_array_literal(Sema *sema, Expr *expr) {
     } else {
         *array->len = expr_intlit(
             u64_to_string((uint64_t)arrlenu(expr->literal.exprs)),
-            type_integer(TkUsize, TYPECONST, expr->cursors_idx),
+            type_number(TkUsize, TYPECONST, expr->cursors_idx),
             expr->cursors_idx
         );
     }
@@ -875,7 +875,7 @@ void sema_unop(Sema *sema, Expr *expr) {
                 expr->type = type_poison();
                 return;
             }
-            if (tc_is_unsigned(sema, *expr->unop.val)) {
+            if (expr->unop.val->type.kind != TkUntypedInt && tc_is_unsigned(sema, *expr->unop.val)) {
                 elog(sema, expr->cursors_idx, "cannot negate unsigned integers");
                 expr->type = type_poison();
             } else {
@@ -1683,7 +1683,7 @@ void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
         Stmnt *f = &stmnt->enumdecl.fields[i];
 
         if (f->constdecl.value.kind == EkNone) {
-            f->constdecl.value = expr_intlit(u64_to_string((uint64_t)counter), type_integer(TkUntypedInt, TYPECONST, f->cursors_idx), f->cursors_idx);
+            f->constdecl.value = expr_intlit(u64_to_string((uint64_t)counter), type_number(TkUntypedInt, TYPECONST, f->cursors_idx), f->cursors_idx);
             counter++;
         } else {
             f->constdecl.type.kind = TkI32;

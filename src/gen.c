@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include <inttypes.h>
 #include "include/gen.h"
 #include "include/exprs.h"
 #include "include/sema.h"

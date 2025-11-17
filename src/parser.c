@@ -479,7 +479,7 @@ Expr parse_primary(Parser *parser) {
             next(parser);
             return expr_intlit(
                 tok.string,
-                type_integer(
+                type_number(
                     TkUntypedInt,
                     TYPECONST,
                     (size_t)parser->cursors_idx
@@ -677,7 +677,7 @@ resume:
                 return expr_unop((Unop){
                     .kind = UkSizeof,
                     .val = right,
-                }, type_integer(TkUntypedInt, TYPECONST, index), index);
+                }, type_number(TkUntypedInt, TYPECONST, index), index);
             }
             return expr_none();
         default:
@@ -780,13 +780,13 @@ Expr parse_shift(Parser *parser) {
                 .kind = BkLeftShift,
                 .left = left,
                 .right = right,
-            }, type_integer(TkUntypedInt, TYPEVAR, index), index);
+            }, type_number(TkUntypedInt, TYPEVAR, index), index);
         } else {
             expr = expr_binop((Binop){
                 .kind = BkRightShift,
                 .left = left,
                 .right = right,
-            }, type_integer(TkUntypedInt, TYPEVAR, index), index);
+            }, type_number(TkUntypedInt, TYPEVAR, index), index);
         }
     }
 
@@ -894,7 +894,7 @@ Expr parse_bitwise_and(Parser *parser) {
             .kind = BkBitAnd,
             .left = left,
             .right = right,
-        }, type_integer(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, index), index);
     }
 
     return expr;
@@ -916,7 +916,7 @@ Expr parse_bitwise_xor(Parser *parser) {
             .kind = BkBitXor,
             .left = left,
             .right = right,
-        }, type_integer(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, index), index);
     }
 
     return expr;
@@ -938,7 +938,7 @@ Expr parse_bitwise_or(Parser *parser) {
             .kind = BkBitOr,
             .left = left,
             .right = right,
-        }, type_integer(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, index), index);
     }
 
     return expr;
@@ -1048,7 +1048,7 @@ Expr parse_range(Parser *parser) {
             }
         }
 
-        Type *subtype = ealloc(sizeof(Type)); *subtype = type_integer(TkUntypedInt, TYPECONST, index);
+        Type *subtype = ealloc(sizeof(Type)); *subtype = type_number(TkUntypedInt, TYPECONST, index);
         expr = expr_range((RangeLit){
             .start = left,
             .end = right,
@@ -1540,7 +1540,7 @@ Stmnt parse_ident(Parser *parser, Expr ident) {
             next(parser);
             return stmnt_constdecl((ConstDecl){
                 .name = ident,
-                .type = type_integer(TkI32, TYPECONST, parser->cursors_idx),
+                .type = type_number(TkI32, TYPECONST, parser->cursors_idx),
             }, parser->cursors_idx);
         default:
             elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
