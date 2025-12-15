@@ -21,7 +21,6 @@
 
 # In Progress
 - For Loops
-- Type Casting
 - Better Error Messages
 
 # Completed
@@ -68,4 +67,5 @@
 - Slice Literals
 - Array Slicing
 - Default Function Arguments
+- Type Casting
 - Sizeof Operator
