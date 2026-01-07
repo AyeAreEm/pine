@@ -89,6 +89,13 @@ Stmnt stmnt_break(size_t index) {
     };
 }
 
+Stmnt stmnt_fall(size_t index) {
+    return (Stmnt){
+        .kind = SkFall,
+        .cursors_idx = index,
+    };
+}
+
 Stmnt stmnt_fncall(FnCall v, size_t index) {
     return (Stmnt){
         .kind = SkFnCall,
@@ -102,6 +109,22 @@ Stmnt stmnt_if(If v, size_t index) {
         .kind = SkIf,
         .cursors_idx = index,
         .iff = v,
+    };
+}
+
+Stmnt stmnt_switch(Switch v, size_t index) {
+    return (Stmnt) {
+        .kind = SkSwitch,
+        .cursors_idx = index,
+        .switchf = v,
+    };
+}
+
+Stmnt stmnt_case(Case v, size_t index) {
+    return (Stmnt){
+        .kind = SkCase,
+        .cursors_idx = index,
+        .casef = v,
     };
 }
 

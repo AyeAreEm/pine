@@ -4,7 +4,6 @@
 - Generics
 - Result Type (!)
 - Receiver Methods
-- Switch Statements
 - Tagged Union Definitions
 - Tagged Union Literals
 - Variadic Arguments
@@ -21,6 +20,7 @@
 
 # In Progress
 - For Loops
+- Switch Statements
 - Better Error Messages
 
 # Completed

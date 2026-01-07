@@ -670,11 +670,14 @@ MaybeAllocStr gen_expr(Gen *gen, Expr expr) {
     }
 
     switch (expr.kind) {
-        case EkIdent:
+        case EkIdent: {
+            strb ident = NULL;
+            strbprintf(&ident, "%s", expr.ident);
             return (MaybeAllocStr){
-                .str = expr.ident, // nothing much i can do to silence this warning, but rest assured .str is not edited anywhere
-                .alloced = false,
+                .str = ident,
+                .alloced = true,
             };
+        }
         case EkIntLit:
         case EkFloatLit:
             return (MaybeAllocStr){
@@ -1213,6 +1216,44 @@ void gen_if(Gen *gen, Stmnt stmnt) {
     mastrfree(cond);
 }
 
+void gen_switch(Gen *gen, Stmnt stmnt) {
+    assert(stmnt.kind == SkSwitch);
+    Switch switchf = stmnt.switchf;
+
+    gen_indent(gen);
+
+    MaybeAllocStr switch_value = gen_expr(gen, switchf.value);
+    gen_writeln(gen, "switch (%s) {", switch_value.str);
+    mastrfree(switch_value);
+
+    for (size_t i = 0; i < arrlenu(switchf.cases); i++) {
+        Case casef = switchf.cases[i].casef;
+
+        if (casef.value.kind == EkNone) {
+            gen_indent(gen);
+            gen_write(gen, "default: ");
+            gen_block(gen, casef.body);
+            gen_indent(gen);
+            gen_writeln(gen, "break;");
+            break;
+        }
+
+        MaybeAllocStr case_value = gen_expr(gen, casef.value);
+        gen_indent(gen);
+        gen_write(gen, "case %s: ", case_value.str);
+        mastrfree(case_value);
+
+        gen_block(gen, casef.body);
+        if (!casef.fall) {
+            gen_indent(gen);
+            gen_writeln(gen, "break;");
+        }
+    }
+
+    gen_indent(gen);
+    gen_writeln(gen, "}");
+}
+
 void gen_for(Gen *gen, Stmnt stmnt) {
     assert(stmnt.kind == SkFor);
     For forf = stmnt.forf;
@@ -1287,6 +1328,15 @@ void gen_stmnt(Gen *gen, Stmnt *stmnt) {
             break;
         case SkIf:
             gen_if(gen, *stmnt);
+            break;
+        case SkSwitch:
+            gen_switch(gen, *stmnt);
+            break;
+        case SkCase:
+            // do nothing, case statements are not allowed without switch
+            break;
+        case SkFall:
+            // do nothing, fall statements are not allowed without switch
             break;
         case SkFor:
             gen_for(gen, *stmnt);

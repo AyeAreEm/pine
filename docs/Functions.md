@@ -28,5 +28,5 @@ To inform the compiler that a function exists but isn't implemented in your code
 
 ```
 extern puts :: fn(s: cstring) i32;
-puts(c"hello world");
+puts("hello world");
 ```

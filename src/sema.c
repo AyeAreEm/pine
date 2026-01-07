@@ -168,6 +168,8 @@ Sema sema_init(Arr(Stmnt) ast, const char *filename, Arr(Cursor) cursors, int er
         .envinfo = {
             .fn = stmnt_none(),
             .forl = false,
+            .casef = false,
+            .fall = false,
         },
         .compile_flags = {
             .output = false,
@@ -1339,6 +1341,48 @@ void sema_if(Sema *sema, Stmnt *stmnt) {
     symtab_pop_scope(sema);
 }
 
+void sema_switch(Sema *sema, Stmnt *stmnt) {
+    assert(stmnt->kind == SkSwitch);
+
+    Switch *switchf = &stmnt->switchf;
+    sema_expr(sema, &switchf->value);
+
+    bool have_else = false;
+
+    for (size_t i = 0; i < arrlenu(switchf->cases); i++) {
+        Stmnt *cas = &switchf->cases[i];
+
+        if (have_else) {
+            elog(sema, cas->cursors_idx, "cannot have more cases after else case");
+        }
+
+        // else case
+        if (cas->casef.value.kind == EkNone) {
+            have_else = true;
+            goto check_body;
+        }
+
+        sema_expr(sema, &cas->casef.value);
+        if (!tc_equals(sema, switchf->value.type, &cas->casef.value.type)) {
+            strb t1 = string_from_type(switchf->value.type);
+            strb t2 = string_from_type(cas->casef.value.type);
+            elog(sema, cas->cursors_idx, "expected case condition to be of type %s, got %s", t1, t2);
+            strbfree(t1); strbfree(t2);
+        }
+
+check_body:
+        sema->envinfo.casef = true;
+
+        sema_block(sema, cas->casef.body);
+        if (sema->envinfo.fall) {
+            cas->casef.fall = true;
+            sema->envinfo.fall = false;
+        }
+
+        sema->envinfo.casef = false;
+    }
+}
+
 void sema_for(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkFor);
     For *forf = &stmnt->forf;
@@ -1405,8 +1449,19 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
                 break;
             case SkBreak:
                 if (!sema->envinfo.forl) {
-                    elog(sema, stmnt->cursors_idx, "illegal use of continue, not inside a loop");
+                    elog(sema, stmnt->cursors_idx, "illegal use of break, not inside a loop");
                 }
+                break;
+            case SkFall:
+                if (!sema->envinfo.casef) {
+                    elog(sema, stmnt->cursors_idx, "illegal use of fall, not inside case");
+                }
+
+                if (i + 1 != arrlenu(body)) {
+                    elog(sema, stmnt->cursors_idx, "fall must be the last statement in a case block");
+                }
+
+                sema->envinfo.fall = true;
                 break;
             case SkVarDecl:
                 sema_var_decl(sema, stmnt);
@@ -1423,8 +1478,14 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
             case SkIf:
                 sema_if(sema, stmnt);
                 break;
+            case SkSwitch:
+                sema_switch(sema, stmnt);
+                break;
             case SkFor:
                 sema_for(sema, stmnt);
+                break;
+            case SkCase:
+                elog(sema, stmnt->cursors_idx, "illegal case statement without switch statement");
                 break;
             case SkFnDecl:
                 elog(sema, stmnt->cursors_idx, "illegal function declaration inside another function");
@@ -1502,11 +1563,17 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
         case SkIf:
             sema_if(sema, stmnt->defer);
             break;
+        case SkSwitch:
+            sema_switch(sema, stmnt->defer);
+            break;
         case SkFor:
             sema_for(sema, stmnt->defer);
             break;
         case SkBlock:
             sema_block(sema, stmnt->defer->block);
+            break;
+        case SkCase:
+            elog(sema, stmnt->externf->cursors_idx, "cannot defer a case statement");
             break;
         case SkReturn:
             elog(sema, stmnt->externf->cursors_idx, "cannot defer a return statement");
@@ -1516,6 +1583,9 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
             break;
         case SkBreak:
             elog(sema, stmnt->externf->cursors_idx, "cannot defer a break statement");
+            break;
+        case SkFall:
+            elog(sema, stmnt->cursors_idx, "cannot defer a fall statement");
             break;
         case SkVarDecl:
         case SkConstDecl:
@@ -1573,11 +1643,20 @@ void sema_extern(Sema *sema, Stmnt *stmnt) {
         case SkBreak:
             elog(sema, stmnt->externf->cursors_idx, "illegal use of break, not inside a loop");
             break;
+        case SkFall:
+            elog(sema, stmnt->externf->cursors_idx, "illegal use of fall, not inside case");
+            break;
         case SkFnCall:
             elog(sema, stmnt->externf->cursors_idx, "illegal use of function call, not inside a function");
             break;
         case SkIf:
             elog(sema, stmnt->externf->cursors_idx, "illegal use of if statement, not inside a function");
+            break;
+        case SkSwitch:
+            elog(sema, stmnt->cursors_idx, "illegal use of switch statement, not inside a function");
+            break;
+        case SkCase:
+            elog(sema, stmnt->cursors_idx, "illegal use of case statement, not inside a function");
             break;
         case SkFor:
             elog(sema, stmnt->externf->cursors_idx, "illegal use of for loop, not inside a function");
@@ -1789,8 +1868,17 @@ void sema_analyse(Sema *sema) {
             case SkBreak:
                 elog(sema, stmnt->cursors_idx, "illegal use of break, not inside a loop");
                 break;
+            case SkFall:
+                elog(sema, stmnt->cursors_idx, "illegal use of fall, not inside case");
+                break;
             case SkFnCall:
                 elog(sema, stmnt->cursors_idx, "illegal use of function call, not inside a function");
+                break;
+            case SkSwitch:
+                elog(sema, stmnt->cursors_idx, "illegal use of switch statement, not inside a function");
+                break;
+            case SkCase:
+                elog(sema, stmnt->cursors_idx, "illegal use of case statement, not inside a function");
                 break;
             case SkIf:
                 elog(sema, stmnt->cursors_idx, "illegal use of if statement, not inside a function");

@@ -1,5 +1,5 @@
 # Compiling
-Just a quick example to show how to compile your program in Pine
+Just a quick example to show how to compile your program in Pine.
 
 ## Executable
 Build:

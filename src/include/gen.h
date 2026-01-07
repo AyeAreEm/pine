@@ -51,7 +51,7 @@ typedef struct Gen {
 } Gen;
 
 typedef struct MaybeAllocStr {
-    char *str;
+    strb str;
     bool alloced;
 } MaybeAllocStr;
 

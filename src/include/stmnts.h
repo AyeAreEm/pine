@@ -17,9 +17,12 @@ typedef enum StmntKind {
     SkReturn,
     SkContinue,
     SkBreak,
+    SkFall,
     SkFnCall,
     SkConstDecl,
     SkIf,
+    SkSwitch,
+    SkCase,
     SkFor,
     SkBlock,
     SkExtern,
@@ -75,6 +78,24 @@ typedef struct If {
     Arr(Stmnt) els;
 } If;
 
+typedef struct Switch {
+    Expr value;
+
+    CaptureKind capturekind;
+    union {
+        Expr ident;
+        Stmnt *constdecl;
+    } capture;
+
+    Arr(Stmnt) cases;
+} Switch;
+
+typedef struct Case {
+    Expr value;
+    Arr(Stmnt) body;
+    bool fall;
+} Case;
+
 typedef struct For {
     Stmnt *decl;
     Expr condition;
@@ -119,6 +140,8 @@ typedef struct Stmnt {
         Stmnt *defer;
 
         If iff;
+        Switch switchf;
+        Case casef;
         For forf;
         Stmnt *externf;
 
@@ -139,9 +162,12 @@ Stmnt stmnt_constdecl(ConstDecl v, size_t index);
 Stmnt stmnt_return(Return v, size_t index);
 Stmnt stmnt_continue(size_t index);
 Stmnt stmnt_break(size_t index);
+Stmnt stmnt_fall(size_t index);
 Stmnt stmnt_defer(Stmnt *v, size_t index);
 
 Stmnt stmnt_if(If v, size_t index);
+Stmnt stmnt_switch(Switch v, size_t index);
+Stmnt stmnt_case(Case v, size_t index);
 Stmnt stmnt_for(For v, size_t index);
 Stmnt stmnt_block(Arr(Stmnt) v, size_t index);
 

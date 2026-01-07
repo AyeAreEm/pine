@@ -14,6 +14,8 @@ Keyword keyword_map(const char *str) {
         return KwContinue;
     } else if (streq(str, "break")) {
         return KwBreak;
+    } else if (streq(str, "fall")) {
+        return KwFall;
     } else if (streq(str, "true")) {
         return KwTrue;
     } else if (streq(str, "false")) {
@@ -24,6 +26,10 @@ Keyword keyword_map(const char *str) {
         return KwIf;
     } else if (streq(str, "else")) {
         return KwElse;
+    } else if (streq(str, "switch")) {
+        return KwSwitch;
+    } else if (streq(str, "case")) {
+        return KwCase;
     } else if (streq(str, "extern")) {
         return KwExtern;
     } else if (streq(str, "for")) {
@@ -53,8 +59,11 @@ const char *keyword_stringify(Keyword k) {
         case KwEnum: return "Enum";
         case KwIf: return "If";
         case KwElse: return "Else";
+        case KwSwitch: return "Switch";
+        case KwCase: return "Case";
         case KwFor: return "For";
         case KwBreak: return "Break";
+        case KwFall: return "Fall";
         case KwContinue: return "Continue";
         case KwReturn: return "Return";
         case KwExtern: return "Extern";

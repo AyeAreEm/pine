@@ -15,16 +15,17 @@
 
 #define ERRORS_MAX 5
 
-static void warn(Parser *parser, size_t i, const char *msg, ...) {
-    eprintf("%s:%lu:%lu " TERM_YELLOW "warning" TERM_END ": ", parser->filename, parser->cursors[i].row, parser->cursors[i].col);
-
-    va_list args;
-    va_start(args, msg);
-
-    veprintfln(msg, args);
-
-    va_end(args);
-}
+// NOTE: commented out as it is not being used... may be useful in the future
+// static void warn(Parser *parser, size_t i, const char *msg, ...) {
+//     eprintf("%s:%lu:%lu " TERM_YELLOW "warning" TERM_END ": ", parser->filename, parser->cursors[i].row, parser->cursors[i].col);
+//
+//     va_list args;
+//     va_start(args, msg);
+//
+//     veprintfln(msg, args);
+//
+//     va_end(args);
+// }
 
 static void elog(Parser *parser, size_t i, const char *msg, ...) {
     parser->error_count++;
@@ -1280,7 +1281,7 @@ Arr(Stmnt) parse_block(Parser *parser, TokenKind start, TokenKind end) {
     return block;
 }
 
-Stmnt *parse_block_curls(Parser *parser) {
+Arr(Stmnt) parse_block_curls(Parser *parser) {
     return parse_block(parser, TokLeftCurl, TokRightCurl);
 }
 
@@ -1590,6 +1591,13 @@ Stmnt parse_break(Parser *parser) {
     return stmnt_break(index);
 }
 
+Stmnt parse_fall(Parser *parser) {
+    size_t index = (size_t)parser->cursors_idx;
+    expect(parser, TokSemiColon);
+
+    return stmnt_fall(index);
+}
+
 Stmnt parse_if(Parser *parser) {
     size_t index = (size_t)parser->cursors_idx;
 
@@ -1644,6 +1652,66 @@ Stmnt parse_if(Parser *parser) {
         .capture.ident = capture,
         .capturekind = capture.kind == EkNone ? CkNone : CkIdent,
         .els = else_block,
+    }, index);
+}
+
+Stmnt parse_switch(Parser *parser) {
+    size_t index = (size_t)parser->cursors_idx;
+
+    expect(parser, TokLeftBracket);
+
+    Token tok = expect(parser, TokIdent);
+    Identifiers convert = convert_ident(parser, tok);
+    Expr ident;
+    if (convert.kind == IkIdent) {
+        ident = convert.expr;
+    } else {
+        elog(parser, parser->cursors_idx, "expected identifer, got reserved word");
+        return parse_next_stmnt(parser);
+    }
+
+    expect(parser, TokRightBracket);
+
+    Arr(Stmnt) cases = NULL;
+
+    while (true) {
+        tok = expect(parser, TokIdent);
+        convert = convert_ident(parser, tok);
+        size_t case_index = parser->cursors_idx;
+
+        if (convert.kind != IkKeyword) {
+            elog(parser, parser->cursors_idx, "expected keyword `case` or `else`");
+            return parse_next_stmnt(parser);
+        }
+
+        if (convert.keyword != KwCase && convert.keyword != KwElse) {
+            elog(parser, parser->cursors_idx, "expected keyword `case` or `else`");
+            return parse_next_stmnt(parser);
+        }
+
+        if (convert.keyword == KwElse) {
+            Arr(Stmnt) body = parse_block_curls(parser);
+            Stmnt casef = stmnt_case((Case){
+                .body = body,
+                .value = expr_none(),
+            }, case_index);
+            arrpush(cases, casef);
+            break;
+        }
+
+        Expr cond = parse_expr(parser);
+        Arr(Stmnt) body = parse_block_curls(parser);
+        Stmnt casef = stmnt_case((Case){
+            .body = body,
+            .value = cond,
+        }, case_index);
+        arrpush(cases, casef);
+    }
+
+    return stmnt_switch((Switch){
+        .value = ident,
+        .cases = cases,
+        .capturekind = CkNone,
     }, index);
 }
 
@@ -1758,10 +1826,14 @@ Stmnt parser_parse(Parser *parser) {
                         return parse_continue(parser);
                     case KwBreak:
                         return parse_break(parser);
+                    case KwFall:
+                        return parse_fall(parser);
                     case KwDefer:
                         return parse_defer(parser);
                     case KwIf:
                         return parse_if(parser);
+                    case KwSwitch:
+                        return parse_switch(parser);
                     case KwExtern:
                         return parse_extern(parser);
                     case KwFor:

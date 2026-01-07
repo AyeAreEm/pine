@@ -8,7 +8,7 @@ endif
 syn keyword pineTypes void bool u8 u16 u32 u64 usize i8 i16 i32 i64 isize f32 f64 string cstring char
 syn keyword pineFn fn
 syn keyword pineStructures struct enum
-syn keyword pineConditionals if else switch case fall default
+syn keyword pineConditionals if else switch case fall
 syn keyword pineRepeat for
 syn keyword pineBooleans true false
 syn keyword pineStatements return break continue defer extern

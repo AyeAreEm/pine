@@ -49,6 +49,8 @@ typedef struct Sema {
     struct {
         Stmnt fn; // can be SkNone
         bool forl;
+        bool casef;
+        bool fall;
     } envinfo;
 
     struct {
