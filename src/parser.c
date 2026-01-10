@@ -1675,7 +1675,12 @@ Stmnt parse_switch(Parser *parser) {
     Arr(Stmnt) cases = NULL;
 
     while (true) {
-        tok = expect(parser, TokIdent);
+        tok = next(parser);
+        if (tok.kind != TokIdent) {
+            elog(parser, parser->cursors_idx, "expected keyword `else`, switch statements must end with an else case");
+            return parse_next_stmnt(parser);
+        }
+
         convert = convert_ident(parser, tok);
         size_t case_index = parser->cursors_idx;
 

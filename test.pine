@@ -1,24 +1,12 @@
-extern puts :: fn(s: cstring) i32;
-
-Day :: enum {
-    Mon;
-    Tue;
-    Wed;
-    Thu;
-    Fri;
-    Sat;
-    Sun;
-}
-
 main :: fn() void {
-    day := Day.Mon;
+    x := 10;
 
-    switch (day)
-    case Day.Mon {
-        fall;
-    } case Day.Tue {
-        puts("monday or tuesday");
-    } else {
-        puts("not monday or tuesday");
+    switch (x)
+    case 9 {
+
+    } case 5 {
+
+    } case 10 {
+
     }
 }
