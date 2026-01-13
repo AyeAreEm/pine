@@ -64,6 +64,7 @@
 - Bitwise Operators
 - Slice Types
 - Slice Literals
+- Slice Indexing
 - Array Slicing
 - Default Function Arguments
 - Type Casting

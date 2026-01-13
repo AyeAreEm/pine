@@ -791,6 +791,8 @@ MaybeAllocStr gen_expr(Gen *gen, Expr expr) {
 
             if (expr.fieldacc.accessing->type.kind == TkPtr) {
                 strbprintf(&ret, "(*%s)[%s]", access.str, index.str);
+            } else if (expr.fieldacc.accessing->type.kind == TkSlice) {
+                strbprintf(&ret, "(%s.ptr)[%s]", access.str, index.str);
             } else {
                 strbprintf(&ret, "(%s)[%s]", access.str, index.str);
             }
@@ -1378,7 +1380,7 @@ void gen_fn_main_decl(Gen *gen, Stmnt stmnt) {
         char *builtin_args =
             "    PineString _PINE_ARGS_[argc];\n"
             "    for (int i = 0; i < argc; i++) {\n"
-            "        _PINE_ARGS_[i] = pinestr(argv[i]);\n"
+            "        _PINE_ARGS_[i] = (PineString){.ptr = argv[i], .len = strlen(argv[i])};\n"
             "    }\n"
             "    PineSlice1d_PineString args = pineslice1d_PineString(_PINE_ARGS_, argc);\n"
         ;
