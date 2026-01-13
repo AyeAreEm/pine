@@ -173,6 +173,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkUntypedInt:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                 case TkI8:
                 case TkI16:
                 case TkI32:
@@ -187,9 +188,23 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
                 default:
                     return false;
             }
+        case TkUntypedUint: {
+            switch (rhs->kind) {
+                case TkUntypedUint:
+                case TkU8:
+                case TkU16:
+                case TkU32:
+                case TkU64:
+                case TkUsize:
+                    return true;
+                default:
+                    return false;
+            }
+        }
         case TkI8:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkI8:
@@ -200,6 +215,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkI16:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkI8:
@@ -211,6 +227,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkI32:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkI8:
@@ -223,6 +240,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkI64:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkI8:
@@ -236,6 +254,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkIsize:
             switch (rhs->kind) {
                 case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkI8:
@@ -249,7 +268,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             }
         case TkU8:
             switch (rhs->kind) {
-                case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkU8:
@@ -259,7 +278,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             }
         case TkU16:
             switch (rhs->kind) {
-                case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkU8:
@@ -270,7 +289,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             }
         case TkU32:
             switch (rhs->kind) {
-                case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkU8:
@@ -282,7 +301,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             }
         case TkU64:
             switch (rhs->kind) {
-                case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkU8:
@@ -295,7 +314,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             }
         case TkUsize:
             switch (rhs->kind) {
-                case TkUntypedInt:
+                case TkUntypedUint:
                     *rhs = lhs;
                     return true;
                 case TkU8:
@@ -392,9 +411,11 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
 // returns TkNone if no default
 Type tc_default_untyped_type(Type type) {
     if (type.kind == TkUntypedInt) {
-        return type_number(TkI64, TYPEVAR, 0);
+        return type_number(TkI64, TYPEVAR, type.cursors_idx);
+    } else if (type.kind == TkUntypedUint) {
+        return type_number(TkU64, TYPEVAR, type.cursors_idx);
     } else if (type.kind == TkUntypedFloat) {
-        return type_number(TkF64, TYPEVAR, 0);
+        return type_number(TkF64, TYPEVAR, type.cursors_idx);
     }
 
     return type_none();
@@ -495,6 +516,7 @@ void tc_make_constant(Type *type) {
             return;
         case TkVoid:
         case TkUntypedInt:
+        case TkUntypedUint:
         case TkUntypedFloat:
         case TkNone:
             assert(false && "cannot make void, untyped_int, untyped_float, or None constant");
@@ -524,107 +546,87 @@ void tc_const_decl(Sema *sema, Stmnt *stmnt) {
 }
 
 void tc_number_within_bounds(Sema *sema, Type type, Expr expr) {
-    if (expr.kind == EkIntLit) {
-        switch (type.kind) {
-            case TkF32: {
-                double value = 0.0f;
-                assert(parse_f64(expr.lit, &value));
-                if (value > F32_MAX || value < F32_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%f\" cannot be represented in f32", value);
-                }
-            } break;
-            case TkF64:
-                // no way to properly check here
-                break;
-            case TkU8: {
-                uint64_t value = 0;
-                assert(parse_u64(expr.lit, &value));
-                if (value > U8_MAX) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in u8", value);
-                }
-            } break;
-            case TkU16: {
-                uint64_t value = 0;
-                assert(parse_u64(expr.lit, &value));
-                if (value > U16_MAX) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in u16", value);
-                }
-            } break;
-            case TkU32: {
-                uint64_t value = 0;
-                assert(parse_u64(expr.lit, &value));
-                if (value > U32_MAX) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in u32", value);
-                }
-            } break;
-            case TkU64:
-                // no way to properly check here
-                break;
-            case TkUsize:
-                // no way to properly check here
-                break;
-            case TkI8: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I8_MAX || value < I8_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i8", value);
-                }
-            } break;
-            case TkI16: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I16_MAX || value < I8_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i16", value);
-                }
-            } break;
-            case TkI32: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I32_MAX || value < I32_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i32", value);
-                }
-            } break;
-            case TkI64:
-                // no way to properly check here
-                break;
-            case TkIsize:
-                // no way to properly check here
-                break;
-            default:
-                break;
-        }
-    } else if (expr.kind == EkUnop && expr.unop.kind == UkNegate && expr.unop.val->kind == EkIntLit) {
-        switch (type.kind) {
-            case TkI8: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I8_MAX || value < I8_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i8", value);
-                }
-            } break;
-            case TkI16: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I16_MAX || value < I16_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i16", value);
-                }
-            } break;
-            case TkI32: {
-                int64_t value = 0;
-                assert(parse_i64(expr.lit, &value));
-                if (value > I32_MAX || value < I32_MIN) {
-                    elog(sema, expr.cursors_idx, "literal \"%zu\" cannot be represented in i32", value);
-                }
-            } break;
-            case TkI64:
-                // no way to properly check here
-                break;
-            case TkIsize:
-                // no way to properly check here
-                break;
-            default:
-                break;
-        }
+    const char *lit = "";
+    bool is_signed = false;
+
+    if (expr.kind == EkUnop && expr.unop.kind == UkNegate && (expr.unop.val->kind == EkIntLit || expr.unop.val->kind == EkFloatLit)) {
+        lit = expr.unop.val->lit;
+        is_signed = true;
+    } else if (expr.kind == EkIntLit || expr.kind == EkFloatLit) {
+        lit = expr.lit;
+    }
+
+    if (streq(lit, "")) {
+        return;
+    }
+
+    switch (type.kind) {
+        case TkF32: {
+            double value = 0.0;
+            assert(parse_f64(lit, &value));
+            if (value > F32_MAX || value < F32_MIN) {
+                elog(sema, expr.cursors_idx, "literal \"%f\" cannot be represented in f32", value);
+            }
+        } break;
+        case TkF64: {
+            // no way to properly check here
+        } break;
+        case TkU8: {
+            uint64_t value = 0;
+            assert(parse_u64(lit, &value));
+            if (is_signed || value > U8_MAX) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u8", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkU16: {
+            uint64_t value = 0;
+            assert(parse_u64(lit, &value));
+            if (is_signed || value > U16_MAX) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u16", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkU32: {
+            uint64_t value = 0;
+            assert(parse_u64(lit, &value));
+            if (is_signed || value > U32_MAX) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u32", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkU64:
+            // no way to properly check here
+            break;
+        case TkUsize:
+            // NOTE: if os is 32bit, this *can* be handled
+            break;
+        case TkI8: {
+            int64_t value = 0;
+            assert(parse_i64(lit, &value));
+            if (value > I8_MAX || value < I8_MIN) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i8", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkI16: {
+            int64_t value = 0;
+            assert(parse_i64(lit, &value));
+            if (value > I16_MAX || value < I16_MIN) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i16", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkI32: {
+            int64_t value = 0;
+            assert(parse_i64(lit, &value));
+            if (value > I32_MAX || value < I32_MIN) {
+                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i32", is_signed ? "-" : "", value);
+            }
+        } break;
+        case TkI64:
+            // no way to properly check here
+            break;
+        case TkIsize:
+            // NOTE: if os is 32bit, this *can* be handled
+            break;
+        default:
+            break;
     }
 }
 
@@ -637,7 +639,7 @@ bool tc_is_unsigned(Sema *sema, Expr expr) {
         case TkU32:
         case TkU64:
         case TkUsize:
-        case TkUntypedInt:
+        case TkUntypedUint:
             return true;
         case TkI8:
         case TkI16:
@@ -647,6 +649,7 @@ bool tc_is_unsigned(Sema *sema, Expr expr) {
         case TkF32:
         case TkF64:
         case TkUntypedFloat:
+        case TkUntypedInt:
             return false;
         case TkPoison:
             return false;

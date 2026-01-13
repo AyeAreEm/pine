@@ -194,7 +194,7 @@ strb gen_ptr_type(Gen *gen, Type type) {
 }
 
 MaybeAllocStr gen_type(Gen *gen, Type type) {
-    assert(type.kind != TkUntypedInt && type.kind != TkUntypedFloat && "should not be codegening untyped types");
+    assert(type.kind != TkUntypedUint && type.kind != TkUntypedInt && type.kind != TkUntypedFloat && "should not be codegening untyped types");
     gen_decl_generic(gen, type);
 
     switch (type.kind) {
@@ -315,6 +315,7 @@ void gen_typename(Gen *gen, Type *types, size_t types_len, strb *typename) {
 
         switch (type.kind) {
             case TkUntypedInt:
+            case TkUntypedUint:
             case TkUntypedFloat:
                 assert(false && "unexpected untyped type in gen_typename");
                 break;
@@ -403,6 +404,7 @@ strb gen_numlit_expr(Expr expr) {
             strbprintf(&s, "UINT32_C(%s)", expr.lit);
             break;
         case TkU64:
+        case TkUntypedUint:
             strbprintf(&s, "UINT64_C(%s)", expr.lit);
             break;
         case TkUsize:

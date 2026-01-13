@@ -1,12 +1,4 @@
 main :: fn() void {
-    x := 10;
-
-    switch (x)
-    case 9 {
-
-    } case 5 {
-
-    } case 10 {
-
-    }
+    x: u8 = 10;
+    x = -(1);
 }

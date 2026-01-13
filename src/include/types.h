@@ -35,6 +35,7 @@ typedef enum TypeKind {
     TkF64,
 
     TkUntypedInt,
+    TkUntypedUint, // NOTE: variable of untyped uint cannot receive a value of untyped int
     TkUntypedFloat,
 
     TkRange,
@@ -89,6 +90,8 @@ typedef struct Type {
 
 Type type_from_string(const char *t);
 strb string_from_type(Type t);
+bool is_untyped(Type t);
+
 Type type_none(void);
 Type type_void(CONSTNESS constant, size_t index);
 Type type_bool(CONSTNESS constant, size_t index);

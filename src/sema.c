@@ -888,7 +888,12 @@ void sema_unop(Sema *sema, Expr *expr) {
                 expr->type = type_poison();
                 return;
             }
-            if (expr->unop.val->type.kind != TkUntypedInt && tc_is_unsigned(sema, *expr->unop.val)) {
+
+            if (expr->unop.val->type.kind == TkUntypedUint) {
+                expr->unop.val->type.kind = TkUntypedInt;
+            }
+
+            if (tc_is_unsigned(sema, *expr->unop.val)) {
                 elog(sema, expr->cursors_idx, "cannot negate unsigned integers");
                 expr->type = type_poison();
             } else {
@@ -1034,9 +1039,9 @@ void sema_binop(Sema *sema, Expr *expr) {
             strb t2 = string_from_type(*rt);
             elog(sema, expr->cursors_idx, "cannot perform arithmetic operations on %s and %s", t1, t2);
             expr->type = type_poison();
-        } else if (lt->kind == TkUntypedInt && rt->kind == TkUntypedInt) {
+        } else if (is_untyped(*lt) && is_untyped(*rt)) {
             expr->type = *lt;
-        } else if (rt->kind == TkUntypedInt) {
+        } else if (is_untyped(*rt)) {
             expr->type = *lt;
         } else {
             expr->type = *rt;
@@ -1047,9 +1052,9 @@ void sema_binop(Sema *sema, Expr *expr) {
             strb t2 = string_from_type(*rt);
             elog(sema, expr->cursors_idx, "cannot perform modulo on %s and %s", t1, t2);
             expr->type = type_poison();
-        } else if (lt->kind == TkUntypedInt && rt->kind == TkUntypedInt) {
+        } else if (is_untyped(*lt) && is_untyped(*rt)) {
             expr->type = *lt;
-        } else if (rt->kind == TkUntypedInt) {
+        } else if (is_untyped(*rt)) {
             expr->type = *lt;
         } else {
             expr->type = *rt;

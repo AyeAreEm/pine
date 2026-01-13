@@ -217,6 +217,9 @@ strb string_from_type(Type t) {
         case TkUntypedInt:
             strbprintf(&ret, "untyped_int");
             break;
+        case TkUntypedUint:
+            strbprintf(&ret, "untyped_uint");
+            break;
         case TkUntypedFloat:
             strbprintf(&ret, "untyped_float");
             break;
@@ -259,4 +262,15 @@ strb string_from_type(Type t) {
     }
 
     return ret;
+}
+
+bool is_untyped(Type t) {
+    switch (t.kind) {
+    case TkUntypedUint:
+    case TkUntypedInt:
+    case TkUntypedFloat:
+        return true;
+    default:
+        return false;
+    }
 }

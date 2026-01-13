@@ -97,6 +97,7 @@ uint64_t eval_sizeof(Sema *sema, Type type) {
             return BITS_TO_BYTES(64);
 
         case TkUntypedInt:
+        case TkUntypedUint:
         case TkUntypedFloat:
             // NOTE: not sure if this is the best way to handle this
             return BITS_TO_BYTES(64);
