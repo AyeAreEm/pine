@@ -1382,10 +1382,10 @@ void gen_fn_main_decl(Gen *gen, Stmnt stmnt) {
             "    for (int i = 0; i < argc; i++) {\n"
             "        _PINE_ARGS_[i] = (PineString){.ptr = argv[i], .len = strlen(argv[i])};\n"
             "    }\n"
-            "    PineSlice1d_PineString args = pineslice1d_PineString(_PINE_ARGS_, argc);\n"
+            // "    PineSlice1d_PineString args = pineslice1d_PineString(_PINE_ARGS_, argc);\n"
         ;
-
         gen_write(gen, builtin_args);
+        gen_writeln(gen, "    PineSlice1d_PineString %s = pineslice1d_PineString(_PINE_ARGS_, argc);", arg.constdecl.name.ident);
     }
 
     gen_indent(gen);
