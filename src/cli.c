@@ -102,8 +102,8 @@ void cli_usage(Cli cli, bool force) {
             exit(0);
         default:
             printfln("USAGE:");
-            printfln("    build [filename.cur] | build executable");
-            printfln("    run [filename.cur] | build and run executable");
+            printfln("    build [filename.pine] | build executable");
+            printfln("    run [filename.pine] | build and run executable");
             printfln("    help | print this usage message (can be used after a command for specific usage)");
             exit(force);
     }
