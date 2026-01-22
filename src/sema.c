@@ -34,14 +34,17 @@ static void elog(Sema *sema, size_t i, const char *msg, ...) {
 static bool decl_has_name(Stmnt stmnt, const char *key) {
     switch (stmnt.kind) {
         case SkFnDecl:
+            assert(stmnt.fndecl.name.kind == EkIdent && ".name is still expected to be Ident");
             return streq(key, stmnt.fndecl.name.ident);
         case SkVarDecl:
             return streq(key, stmnt.vardecl.name.ident);
         case SkConstDecl:
             return streq(key, stmnt.constdecl.name.ident);
         case SkStructDecl:
+            assert(stmnt.structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
             return streq(key, stmnt.structdecl.name.ident);
         case SkEnumDecl:
+            assert(stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
             return streq(key, stmnt.enumdecl.name.ident);
         default:
             return false;
@@ -1020,7 +1023,7 @@ void sema_binop(Sema *sema, Expr *expr) {
     }
 
     if (expr->binop.kind == BkEquals || expr->binop.kind == BkInequals) {
-        if (!tc_can_compare_equality(*lt, *rt)) {
+        if (!tc_can_compare_equality(sema, *lt, *rt)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
             elog(sema, expr->cursors_idx, "cannot compare equality of %s and %s", t1, t2);
@@ -1125,10 +1128,12 @@ void sema_expr(Sema *sema, Expr *expr) {
                 expr->type = stmnt.constdecl.type;
                 break;
             } else if (stmnt.kind == SkEnumDecl) {
+                assert(stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
                 expr->type = type_typedef(stmnt.enumdecl.name.ident, TYPEVAR, stmnt.cursors_idx);
                 break;
             } else if (stmnt.kind == SkStructDecl) {
-                expr->type = type_typedef(stmnt.enumdecl.name.ident, TYPEVAR, stmnt.cursors_idx);
+                assert(stmnt.structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
+                expr->type = type_typedef(stmnt.structdecl.name.ident, TYPEVAR, stmnt.cursors_idx);
                 break;
             } else {
                 elog(sema, expr->cursors_idx, "expected \"%s\" to be a variable", expr->ident);
@@ -1296,7 +1301,6 @@ void sema_const_decl(Sema *sema, Stmnt *stmnt) {
     sema_expr(sema, &constdecl->value);
     tc_const_decl(sema, stmnt);
 
-    assert(constdecl->name.kind == EkIdent);
     symtab_push(sema, constdecl->name.ident, *stmnt);
 }
 
@@ -1508,6 +1512,7 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
 void sema_fn_decl(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkFnDecl);
 
+    assert(stmnt->fndecl.name.kind == EkIdent && ".name is still expected to be Ident");
     symtab_push(sema, stmnt->fndecl.name.ident, *stmnt);
     symtab_new_scope(sema);
 
@@ -1680,6 +1685,7 @@ void sema_extern(Sema *sema, Stmnt *stmnt) {
 void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
     assert(stmnt->kind == SkStructDecl);
 
+    assert(stmnt->structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
     arrpush(visited, stmnt->structdecl.name.ident);
     Arr(const char *) children = NULL;
 
@@ -1742,6 +1748,7 @@ void sema_struct_decl(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkStructDecl);
     StructDecl *structd = &stmnt->structdecl;
 
+    assert(stmnt->structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
     symtab_push(sema, structd->name.ident, *stmnt);
     symtab_new_scope(sema);
 
@@ -1801,6 +1808,7 @@ void sema_struct_decl(Sema *sema, Stmnt *stmnt) {
 void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkEnumDecl);
 
+    assert(stmnt->enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
     symtab_push(sema, stmnt->enumdecl.name.ident, *stmnt);
     symtab_new_scope(sema);
 

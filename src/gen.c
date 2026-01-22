@@ -1035,17 +1035,15 @@ strb gen_decl_proto(Gen *gen, Stmnt stmnt) {
 
     switch (stmnt.kind) {
         case SkVarDecl:
-            assert(stmnt.vardecl.name.kind == EkIdent);
             name = stmnt.vardecl.name.ident;
             type = stmnt.vardecl.type;
             break;
         case SkConstDecl:
-            assert(stmnt.constdecl.name.kind == EkIdent);
             name = stmnt.constdecl.name.ident;
             type = stmnt.constdecl.type;
             break;
         case SkFnDecl:
-            assert(stmnt.fndecl.name.kind == EkIdent);
+            assert(stmnt.fndecl.name.kind == EkIdent && ".name is still expected to be Ident");
             name = stmnt.fndecl.name.ident;
             type = stmnt.fndecl.type;
             break;
@@ -1403,6 +1401,7 @@ void gen_fn_decl(Gen *gen, Stmnt stmnt, bool is_extern) {
     gen->def_loc = strlen(gen->defs);
     gen_indent(gen);
 
+    assert(stmnt.fndecl.name.kind == EkIdent && ".name is still expected to be Ident");
     if (fndecl.name.kind == EkIdent && streq("main", fndecl.name.ident)) {
         gen_fn_main_decl(gen, stmnt);
         return;
@@ -1467,6 +1466,7 @@ void gen_struct_decl(Gen *gen, Stmnt stmnt) {
     StructDecl structd = stmnt.structdecl;
 
     strb struct_def = NULL;
+    assert(stmnt.structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
     strbprintf(&struct_def, "struct %s", structd.name.ident);
 
     if (gen_find_generated_typedef(gen, struct_def)) {
@@ -1490,6 +1490,7 @@ void gen_enum_decl(Gen *gen, Stmnt stmnt) {
     EnumDecl enumd = stmnt.enumdecl;
 
     strb enum_def = NULL;
+    assert(stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
     strbprintf(&enum_def, "enum %s", enumd.name.ident);
 
     if (gen_find_generated_typedef(gen, enum_def)) {

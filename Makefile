@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -O2
 
 SRC_CLI = src/cli.c
 BIN_CLI = bin/cli.o

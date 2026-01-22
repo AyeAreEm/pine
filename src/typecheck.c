@@ -730,7 +730,7 @@ bool tc_can_arithmetic(Type lhs, Type rhs, bool ints_only) {
     }
 }
 
-bool tc_can_compare_equality(Type lhs, Type rhs) {
+bool tc_can_compare_equality(Sema *sema, Type lhs, Type rhs) {
     switch (lhs.kind) {
         case TkBool:
             if (rhs.kind == TkBool) {
@@ -797,6 +797,25 @@ bool tc_can_compare_equality(Type lhs, Type rhs) {
                 default:
                     return false;
             }
+        case TkTypeDef: {
+            if (rhs.kind != TkTypeDef) {
+                return false;
+            }
+
+            Stmnt lhs_stmnt = symtab_find(sema, lhs.typedeff, lhs.cursors_idx);
+            Stmnt rhs_stmnt = symtab_find(sema, rhs.typedeff, rhs.cursors_idx);
+            if (!(lhs_stmnt.kind == SkEnumDecl && rhs_stmnt.kind == SkEnumDecl)) {
+                return false;
+            }
+
+            assert(lhs_stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
+            assert(rhs_stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
+            if (!streq(lhs_stmnt.enumdecl.name.ident, rhs_stmnt.enumdecl.name.ident)) {
+                return false;
+            }
+
+            return true;
+        }
         default:
             return false;
     }

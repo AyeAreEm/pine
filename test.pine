@@ -1,9 +1,16 @@
 extern puts :: fn(s: cstring) i32;
 
-main :: fn(clargs: []string) void {
-    args := clargs[1..];
+Shape :: enum {
+    Circle;
+    Square;
+}
 
-    for (i: usize = 0; i < args.len; i += 1) {
-        puts(args[i].ptr);
+main :: fn() void {
+    shape := Shape.Circle;
+
+    if (shape == Shape.Circle) {
+        puts("circle");
+    } else if (shape == Shape.Square) {
+        puts("square");
     }
 }
