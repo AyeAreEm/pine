@@ -538,8 +538,10 @@ void sema_array_index(Sema *sema, Expr *expr) {
     if (arrtype->kind == TkArray) {
         expr->type = *arrtype->array.of;
 
-        if (eval_expr(sema, expr->arrayidx.index) >= eval_expr(sema, arrtype->array.len)) {
-            elog(sema, expr->cursors_idx, "index out of bounds");
+        uint64_t index = eval_expr(sema, expr->arrayidx.index);
+        uint64_t len = eval_expr(sema, arrtype->array.len);
+        if (index >= len) {
+            elog(sema, expr->cursors_idx, "index %zu out of bounds: 0..<%zu", index, len);
         }
     } else if (arrtype->kind == TkSlice) {
         expr->type = *arrtype->slice.of;

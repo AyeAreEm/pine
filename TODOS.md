@@ -6,6 +6,8 @@
 - Receiver Methods
 - Tagged Union Definitions
 - Tagged Union Literals
+- Traits
+- Iterative For Loops
 - Variadic Arguments
 - Defining Libraries
 - Importing Libraries
@@ -19,9 +21,6 @@
 - Standard Library
 
 # In Progress
-- Runtime Bounds Checking (and other safety features)
-- For Loops
-- Switch Statements
 - Better Error Messages
 
 # Completed
@@ -70,3 +69,6 @@
 - Default Function Arguments
 - Type Casting
 - Sizeof Operator
+- Switch Statements
+- For Loops
+- Runtime Bounds Checking

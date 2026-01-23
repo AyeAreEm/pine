@@ -1,13 +1,9 @@
-change :: fn(nums: ^*[2]i32) void {
+change :: fn(nums: *[2]i32) void {
     nums[0] = 10;
-    nums[2] = 15;
-}
-
-redirect :: fn(nums: *[2]i32) void {
-    change(&nums);
+    nums[1] = 15;
 }
 
 main :: fn() void {
     nums := [2]i32{1, 2};
-    redirect(&nums);
+    change(&nums);
 }

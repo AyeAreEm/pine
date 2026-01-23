@@ -797,13 +797,19 @@ MaybeAllocStr _gen_expr(Gen *gen, Expr expr, bool for_identifier) {
             MaybeAllocStr index = gen_expr(gen, *expr.arrayidx.index);
             strb ret = NULL;
 
-            if (expr.fieldacc.accessing->type.kind == TkPtr) {
-                strbprintf(&ret, "(*%s)[%s]", access.str, index.str);
-            } else if (expr.fieldacc.accessing->type.kind == TkSlice) {
-                strbprintf(&ret, "pinesliceat(\"%s\", \"%lu\", %s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, access.str, index.str);
+            bool ptr = false;
+            Type type = expr.fieldacc.accessing->type;
+
+            if (type.kind == TkPtr) {
+                type = *expr.fieldacc.accessing->type.ptr_to;
+                ptr = true;
+            }
+
+            if (type.kind == TkSlice) {
+                strbprintf(&ret, "pinesliceat(\"%s\", \"%lu\", %s%s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, ptr ? "*" : "", access.str, index.str);
             } else {
-                MaybeAllocStr len = gen_expr(gen, *expr.arrayidx.accessing->type.array.len);
-                strbprintf(&ret, "pinearrat(\"%s\", \"%lu\", %s, %s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, access.str, index.str, len.str);
+                MaybeAllocStr len = gen_expr(gen, *type.array.len);
+                strbprintf(&ret, "pinearrat(\"%s\", \"%lu\", %s%s, %s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, ptr ? "*" : "", access.str, index.str, len.str);
                 mastrfree(len);
             }
 
