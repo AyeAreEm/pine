@@ -1,4 +1,3 @@
 main :: fn(args: []string) void {
-    nums := [2]i32{1, 2};
-    n := nums[0];
+    x := -10;
 }

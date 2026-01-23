@@ -478,7 +478,7 @@ Expr parse_primary(Parser *parser) {
             return expr_intlit(
                 tok.string,
                 type_number(
-                    TkUntypedUint,
+                    TkUntypedInt,
                     TYPECONST,
                     (size_t)parser->cursors_idx
                 ),
