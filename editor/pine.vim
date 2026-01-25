@@ -14,7 +14,7 @@ syn keyword pineBooleans true false
 syn keyword pineStatements return break continue defer extern
 syn keyword pineWordOperators sizeof cast
 
-syntax match pineOperators /\v[|$+%-;:=<>!&^()[\]{}*\/]/
+syntax match pineOperators /\v[|$+%-;:=<>?!&^()[\]{}*\/]/
 
 syntax region pineString start=/\v"/ skip=/\v\\./ end=/\v"/ contains=pineEscapes
 syntax region pineChar start=/\v'/ skip=/\v\\./ end=/\v'/ contains=pineEscapes
