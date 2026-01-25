@@ -1,9 +1,14 @@
-change :: fn(nums: *[2]i32) void {
-    nums[0] = 10;
-    nums[1] = 15;
-}
+extern puts :: fn(s: cstring) i32;
 
-main :: fn() void {
-    nums := [2]i32{1, 2};
-    change(&nums);
+main :: fn(args: []string) void {
+    for (i: isize = 0; i < cast(isize)args.len; i += 1;) {
+        if (i == 0) {
+            continue;
+        }
+        if (i == 2) {
+            break;
+        }
+
+        puts(args[i].ptr);
+    }
 }

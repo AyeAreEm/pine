@@ -12,43 +12,43 @@ typedef enum TokenKind {
     TokFloatLit,
     TokCharLit,
     TokStrLit,
-    TokDirective,
+    TokDirective,    // #...
 
-    TokColon,
-    TokSemiColon,
+    TokColon,        // :
+    TokSemiColon,    // ;
 
-    TokEqual,
-    TokLeftAngle,
-    TokRightAngle,
+    TokEqual,        // =
+    TokLeftAngle,    // <
+    TokRightAngle,   // >
 
-    TokLeftBracket,
-    TokRightBracket,
+    TokLeftBracket,  // (
+    TokRightBracket, // )
 
-    TokLeftCurl,
-    TokRightCurl,
+    TokLeftCurl,     // {
+    TokRightCurl,    // }
 
-    TokLeftSquare,
-    TokRightSquare,
+    TokLeftSquare,   // [
+    TokRightSquare,  // ]
 
-    TokComma,
-    TokDot,
-    TokCaret,
+    TokComma,        // ,
+    TokDot,          // .
+    TokCaret,        // ^
 
-    TokPlus,
-    TokMinus,
-    TokStar,
-    TokSlash,
-    TokPercent,
-    TokBackSlash,
+    TokPlus,         // +
+    TokMinus,        // -
+    TokStar,         // *
+    TokSlash,        // /
+    TokPercent,      // %
+    TokBackSlash,    /* \ */
 
-    TokBar,
-    TokAmpersand,
-    TokTilde,
-    TokExclaim,
+    TokBar,          // |
+    TokAmpersand,    // &
+    TokTilde,        // ~
+    TokExclaim,      // !
 
-    TokUnderscore,
+    TokUnderscore,   // _
 
-    TokQuestion,
+    TokQuestion,     // ?
 
     TokNone,
 } TokenKind;

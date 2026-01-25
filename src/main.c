@@ -1,3 +1,4 @@
+#include <time.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,10 +49,6 @@ void compile(CompileFlags flags) {
     for (size_t i = 0; i < arrlenu(flags.links); i++) {
         strbprintf(&com, " %s", flags.links[i]);
     }
-
-    // if (DEBUG_MODE) {
-    //     printf("%s\n", com);
-    // }
 
     FILE *fd = popen(com, "r");
     if (fd == NULL) {
@@ -141,6 +138,7 @@ void run(Cli cli, const char *exe) {
 }
 
 int main(int argc, char **argv) {
+    srand(time(NULL));
     Cli cli = cli_parse(argv, argc);
 
     cli_usage(cli, false);

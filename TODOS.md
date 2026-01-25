@@ -7,7 +7,6 @@
 - Tagged Union Definitions
 - Tagged Union Literals
 - Traits
-- Iterative For Loops
 - Variadic Arguments
 - Defining Libraries
 - Importing Libraries
@@ -21,6 +20,7 @@
 - Standard Library
 
 # In Progress
+- Iterative For Loops
 - Better Error Messages
 
 # Completed

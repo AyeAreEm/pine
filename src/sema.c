@@ -1404,7 +1404,9 @@ void sema_for(Sema *sema, Stmnt *stmnt) {
     For *forf = &stmnt->forf;
 
     symtab_new_scope(sema);
-    sema_var_decl(sema, forf->decl);
+    if (forf->decl->kind != SkNone) {
+        sema_var_decl(sema, forf->decl);
+    }
     sema_expr(sema, &forf->condition);
 
     if (forf->condition.type.kind == TkPoison) {
@@ -1418,7 +1420,20 @@ void sema_for(Sema *sema, Stmnt *stmnt) {
         strbfree(t); 
         return;
     }
-    sema_var_reassign(sema, forf->reassign);
+
+    switch (forf->update->kind) {
+        case SkNone:
+            break;
+        case SkFnCall:
+            sema_fn_call_stmnt(sema, forf->update);
+            break;
+        case SkVarReassign:
+            sema_var_reassign(sema, forf->update);
+            break;
+        default:
+            elog(sema, stmnt->cursors_idx, "unexpected statement in for loop update");
+            break;
+    }
 
     symtab_new_scope(sema);
 

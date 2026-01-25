@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include "include/gen.h"
@@ -17,6 +18,8 @@
 
 extern unsigned char builtin_defs[];
 extern unsigned int builtin_defs_len;
+
+const char *alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 void mastrfree(MaybeAllocStr s) {
     if (s.alloced) strbfree(s.str);
@@ -1277,24 +1280,45 @@ void gen_for(Gen *gen, Stmnt stmnt) {
     For forf = stmnt.forf;
 
     gen_indent(gen);
-
     gen_writeln(gen, "{");
+    gen->indent++;
 
-    gen_var_decl(gen, *forf.decl);
+    if (forf.decl->kind != SkNone) {
+        gen_var_decl(gen, *forf.decl);
+    }
 
     MaybeAllocStr cond = gen_expr(gen, forf.condition);
-    MaybeAllocStr reassign = gen_expr(gen, forf.reassign->varreassign.name);
-    MaybeAllocStr value = gen_expr(gen, forf.reassign->varreassign.value);
-
     gen_indent(gen);
-    gen_write(gen, "for (; %s; %s = %s) ", cond.str, reassign.str, value.str);
+    gen_write(gen, "for (; %s; ", cond.str);
+
+    switch (forf.update->kind) {
+        case SkFnCall: {
+            Expr expr = expr_fncall(stmnt.fncall, type_none(), stmnt.cursors_idx);
+
+            MaybeAllocStr call = gen_fn_call(gen, expr);
+            gen_write(gen, "%s", call.str);
+
+            mastrfree(call);
+            break;
+        }
+        case SkVarReassign: {}
+            MaybeAllocStr reassign = gen_expr(gen, forf.update->varreassign.name);
+            MaybeAllocStr value = gen_expr(gen, forf.update->varreassign.value);
+            gen_write(gen, "%s = %s", reassign.str, value.str);
+
+            mastrfree(value);
+            mastrfree(reassign);
+            break;
+        default:
+            break;
+    }
+    gen_write(gen, ") ");
     gen_block(gen, forf.body);
 
+    gen->indent--;
     gen_indent(gen);
     gen_writeln(gen, "}");
 
-    mastrfree(value);
-    mastrfree(reassign);
     mastrfree(cond);
 }
 

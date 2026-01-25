@@ -40,8 +40,9 @@ typedef struct Gen {
     size_t def_loc;
     size_t code_loc;
 
-    bool in_defs;
     uint8_t indent;
+
+    bool in_defs;
 
     CompileFlags compile_flags;
 

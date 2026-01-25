@@ -99,7 +99,7 @@ typedef struct Case {
 typedef struct For {
     Stmnt *decl;
     Expr condition;
-    Stmnt *reassign;
+    Stmnt *update;
     Arr(Stmnt) body;
 } For;
 

@@ -126,7 +126,7 @@ Token peek(Parser *parser) {
 }
 
 Token peek_after(Parser *parser) {
-    if (arrlen(parser->tokens) == 0) {
+    if (arrlen(parser->tokens) < 2) {
         return token_none();
     }
 
@@ -1726,10 +1726,44 @@ Stmnt parse_extern(Parser *parser) {
     return stmnt_extern(stmnt, index);
 }
 
+Stmnt parse_iterative_for(Parser *parser) {
+    comp_elog("iterative for loop not implemented...");
+    return (Stmnt){};
+}
+
+Stmnt parse_for_decl(Parser *parser, Expr ident) {
+    Stmnt vardecl = stmnt_none();
+    Token tok = peek(parser);
+    if (tok.kind == TokEqual) {
+        // for (i :=
+        next(parser);
+        vardecl = parse_var_decl(parser, ident, type_none(), true);
+    } else if (tok.kind == TokIdent) {
+        // for (i: <type>
+        Type type = parse_type(parser);
+        expect(parser, TokEqual);
+        vardecl = parse_var_decl(parser, ident, type, true);
+    } else {
+        elog(parser, parser->cursors_idx, "unexpected token %s in for loop", tokenkind_stringify(tok.kind));
+    }
+
+    return vardecl;
+}
+
 Stmnt parse_for(Parser *parser) {
     size_t index = (size_t)parser->cursors_idx;
 
     expect(parser, TokLeftBracket);
+    if (peek(parser).kind != TokSemiColon && peek_after(parser).kind != TokColon) {
+        return parse_iterative_for(parser);
+    }
+
+    Stmnt *decl = ealloc(sizeof(Stmnt)); *decl = stmnt_none();
+    if (peek(parser).kind == TokSemiColon) {
+        next(parser);
+        goto condition;
+    }
+
     Token tok = expect(parser, TokIdent);
     Identifiers convert = convert_ident(parser, tok);
     Expr ident;
@@ -1740,53 +1774,33 @@ Stmnt parse_for(Parser *parser) {
         return parse_next_stmnt(parser);
     }
 
-    // for (i:
-    tok = peek(parser);
-    if (tok.kind == TokColon) {
-        next(parser);
-        tok = peek(parser);
+    expect(parser, TokColon);
 
-        Stmnt *vardecl = ealloc(sizeof(Stmnt));
-        if (tok.kind == TokEqual) {
-            // for (i :=
-            next(parser);
-            *vardecl = parse_var_decl(parser, ident, type_none(), true);
-        } else if (tok.kind == TokIdent) {
-            // for (i: <type>
-            Type type = parse_type(parser);
-            expect(parser, TokEqual);
-            *vardecl = parse_var_decl(parser, ident, type, true);
-        } else {
-            elog(parser, parser->cursors_idx, "unexpected token %s in for loop", tokenkind_stringify(tok.kind));
-            return parse_next_stmnt(parser);
-        }
-
-        // for (i: <type?> = <expr>; <cond>
-        Expr cond = parse_expr(parser);
-        expect(parser, TokSemiColon);
-
-        Stmnt *reassign = ealloc(sizeof(Stmnt));
-        tok = peek(parser);
-        if (tok.kind == TokIdent) {
-            next(parser);
-
-            // for (i: <type?> = <expr>; <cond>; i [+-*/]=
-            *reassign = parse_possible_assignment(parser, ident, false);
-        }
-        expect(parser, TokRightBracket);
-
-        Stmnt *body = parse_block_curls(parser);
-        return stmnt_for((For){
-            .decl = vardecl,
-            .condition = cond,
-            .reassign = reassign,
-            .body = body,
-        }, index);
-    } else {
-        // TODO: support `for (values) [value]`
-        elog(parser, parser->cursors_idx, "expected ':', got %s", tokenkind_stringify(tok.kind));
+    *decl = parse_for_decl(parser, ident);
+    if (decl->kind == SkNone) {
         return parse_next_stmnt(parser);
     }
+
+condition: {}
+    Expr cond = parse_expr(parser);
+    expect(parser, TokSemiColon);
+
+    Stmnt *update = ealloc(sizeof(Stmnt)); *update = stmnt_none();
+    tok = peek(parser);
+    if (tok.kind != TokRightBracket) {
+        *update = parser_parse(parser);
+        expect(parser, TokRightBracket);
+    } else {
+        next(parser);
+    }
+
+    Stmnt *body = parse_block_curls(parser);
+    return stmnt_for((For){
+        .decl = decl,
+        .condition = cond,
+        .update = update,
+        .body = body,
+    }, index);
 }
 
 Stmnt parse_directive(Parser *parser) {
