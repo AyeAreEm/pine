@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -381,7 +380,7 @@ MaybeAllocStr gen_option_expr(Gen *gen, Expr expr) {
         MaybeAllocStr value = gen_expr(gen, expr);
 
         strb option = NULL;
-        strbprintf(&option, "pineoption_%s(%s)", typename, value.str);
+        strbprintf(&option, "pineoption(%s, %s)", typename, value.str);
 
         mastrfree(value);
         strbfree(typename);
@@ -521,21 +520,15 @@ MaybeAllocStr gen_slice_literal_expr(Gen *gen, Expr expr) {
     strb lit = NULL;
     Type slice = expr.type;
 
-    strb typename = NULL;
-    gen_typename(gen, &slice, 1, &typename);
+    strb subtypename = NULL;
+    gen_typename(gen, slice.slice.of, 1, &subtypename);
 
-    char *type = strtok(typename, "_");
-    for (size_t i = 0; i < strlen(type); i++) {
-        type[i] = tolower(type[i]);
-    }
-    typename[strlen(type)] = '_';
-
-    strbprintf(&lit, "%s(", typename);
+    strbprintf(&lit, "pineslice1d(%s, ", subtypename);
 
     Type *slice_of = slice.slice.of;
     MaybeAllocStr subtype = gen_type(gen, *slice_of);
 
-    strbprintf(&lit, "(%s[]){", subtype.str);
+    strbprintf(&lit, "((%s[]){", subtype.str);
     mastrfree(subtype);
 
     for (size_t i = 0; i < arrlenu(expr.literal.exprs); i++) {
@@ -549,9 +542,9 @@ MaybeAllocStr gen_slice_literal_expr(Gen *gen, Expr expr) {
 
         mastrfree(val);
     }
-    strbprintf(&lit, "}, %d)", arrlenu(expr.literal.exprs));
+    strbprintf(&lit, "}), %d)", arrlenu(expr.literal.exprs));
 
-    strbfree(typename);
+    strbfree(subtypename);
     return (MaybeAllocStr){
         .str = lit,
         .alloced = true,
@@ -743,7 +736,7 @@ MaybeAllocStr _gen_expr(Gen *gen, Expr expr, bool for_identifier) {
             gen_typename(gen, expr.type.option.subtype, 1, &typename);
 
             strb option = NULL;
-            strbprintf(&option, "pineoptionnull_%s()", typename);
+            strbprintf(&option, "pineoptionnull(%s)", typename);
 
             strbfree(typename);
             return (MaybeAllocStr){
@@ -872,7 +865,7 @@ MaybeAllocStr _gen_expr(Gen *gen, Expr expr, bool for_identifier) {
             }
             strb ret = NULL;
             strbprintf(&ret,
-                "pineslice1d_range_%s(%s.ptr, %s, %s%s)",
+                "pineslice1d_range(%s, %s.ptr, %s, %s%s)",
                 typename,
                 access.str,
                 start.str,
@@ -987,6 +980,11 @@ void gen_decl_generic(Gen *gen, Type type) {
                 strbfree(def);
                 return;
             }
+
+            gen->defs = strbinsert(gen->defs, def, gen->def_loc);
+            gen->def_loc += strlen(def);
+            arrpush(gen->generated_typedefs, def);
+            return;
         } break;
         case TkArray: {
             bool add = gen_decl_generic_array(gen, type, &def);
@@ -1015,6 +1013,11 @@ void gen_decl_generic(Gen *gen, Type type) {
                 strbfree(def);
                 return;
             }
+
+            gen->defs = strbinsert(gen->defs, def, gen->def_loc);
+            gen->def_loc += strlen(def);
+            arrpush(gen->generated_typedefs, def);
+            return;
         } break;
         case TkTypeDef: {
             // NOTE: no generics right now, just for forward declaration
@@ -1034,27 +1037,26 @@ void gen_decl_generic(Gen *gen, Type type) {
                 return;
             }
 
-            arrpush(gen->generated_typedefs, typedeff);
-
             gen->defs = strbinsert(gen->defs, typedeff, gen->def_loc);
             gen->def_loc += strlen(typedeff);
+            arrpush(gen->generated_typedefs, typedeff);
             return;
         } break;
         default:
             return;
     }
 
-    gen->defs = strbinsert(gen->defs, def, gen->def_loc);
-    gen->def_loc += strlen(def);
-    arrpush(gen->generated_typedefs, def);
-
-    bool replaced = strreplace(def, "Def", "Imp");
-    assert(replaced);
-    gen->code = strbinsert(gen->code, def, gen->code_loc);
-    gen->code_loc += strlen(def);
-
-    replaced = strreplace(def, "Imp", "Def");
-    assert(replaced);
+    // gen->defs = strbinsert(gen->defs, def, gen->def_loc);
+    // gen->def_loc += strlen(def);
+    // arrpush(gen->generated_typedefs, def);
+    //
+    // bool replaced = strreplace(def, "Def", "Imp");
+    // assert(replaced);
+    // gen->code = strbinsert(gen->code, def, gen->code_loc);
+    // gen->code_loc += strlen(def);
+    //
+    // replaced = strreplace(def, "Imp", "Def");
+    // assert(replaced);
 }
 
 strb gen_decl_proto(Gen *gen, Stmnt stmnt) {
@@ -1543,10 +1545,9 @@ void gen_main_fn_decl(Gen *gen, Stmnt stmnt) {
             "    for (int i = 0; i < argc; i++) {\n"
             "        _PINE_ARGS_[i] = (PineString){.ptr = argv[i], .len = strlen(argv[i])};\n"
             "    }\n"
-            // "    PineSlice1d_PineString args = pineslice1d_PineString(_PINE_ARGS_, argc);\n"
         ;
         gen_write(gen, builtin_args);
-        gen_writeln(gen, "    PineSlice1d_PineString %s = pineslice1d_PineString(_PINE_ARGS_, argc);", arg.constdecl.name.ident);
+        gen_writeln(gen, "    PineSlice1d_PineString %s = pineslice1d(PineString, _PINE_ARGS_, argc);", arg.constdecl.name.ident);
     }
 
     gen_indent(gen);
@@ -1715,6 +1716,7 @@ void gen_generate(Gen *gen) {
     strbprintf(&gen->defs, "%.*s", builtin_defs_len, builtin_defs);
     strbprintf(&gen->code, "#include \"output.h\"\n");
     gen->def_loc = builtin_defs_len;
+    gen->code_loc = strlen("#include \"output.h\"\n");
 
     for (size_t i = 0; i < arrlenu(gen->ast); i++) {
         Stmnt stmnt = gen->ast[i];

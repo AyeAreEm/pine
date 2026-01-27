@@ -38,58 +38,23 @@ int printf(const char *fmt, ...);
 typedef struct PineSlice1d_##Tname {\
     T *ptr;\
     usize len;\
-} PineSlice1d_##Tname;\
-PineSlice1d_##Tname pineslice1d_##Tname(T *ptr, usize len);\
-PineSlice1d_##Tname pineslice1d_range_##Tname(T *ptr, usize start, usize end);
-#define PineSlice1dImp(T, Tname)\
-PineSlice1d_##Tname pineslice1d_##Tname(T *ptr, usize len) {\
-    PineSlice1d_##Tname ret = (PineSlice1d_##Tname){.len = len};\
-    ret.ptr = ptr;\
-    return ret;\
-}\
-PineSlice1d_##Tname pineslice1d_range_##Tname(T *ptr, usize start, usize end) {\
-    PineSlice1d_##Tname ret;\
-    ret.ptr = &ptr[start];\
-    ret.len = end;\
-    return ret;\
-}
+} PineSlice1d_##Tname;
+#define pineslice1d(Tname, pointer, length) (PineSlice1d_##Tname){.ptr = (pointer), .len = (length)}
+#define pineslice1d_range(Tname, pointer, start, end) (PineSlice1d_##Tname){.ptr = &(pointer)[(start)], .len = (end)}
+
 #define PineSlice2dDef(T, Tname)\
 typedef struct PineSlice2d_##Tname {\
     PineSlice1d_##Tname *ptr;\
     usize len;\
-} PineSlice2d_##Tname;\
-PineSlice2d_##Tname pineslice2d_##Tname(PineSlice1d_##Tname *ptr, usize len);\
-PineSlice2d_##Tname pineslice2d_range_##Tname(PineSlice1d_##Tname *ptr, usize start, usize end);
-#define PineSlice2dImp(T, Tname)\
-PineSlice2d_##Tname pineslice2d_##Tname(PineSlice1d_##Tname *ptr, usize len) {\
-    PineSlice2d_##Tname ret = (PineSlice2d_##Tname){.len = len};\
-    ret.ptr = ptr;\
-    return ret;\
-}\
-PineSlice2d_##Tname pineslice2d_range_##Tname(PineSlice1d_##Tname *ptr, usize start, usize end) {\
-    PineSlice2d_##Tname ret;\
-    ret.ptr = &ptr[start];\
-    ret.len = end;\
-    return ret;\
-}
+} PineSlice2d_##Tname;
+#define pineslice2d(Tname, pointer, length) (PineSlice2d_##Tname){.ptr = (pointer), .len = (length)}
+#define pineslice2d_range(Tname, pointer, start, end) (PineSlice2d_##Tname){.ptr = &(pointer)[(start)], .len = (end)}
+
 #define PineOptionDef(T, Tname)\
 typedef struct PineOption_##Tname {\
     T some;\
     bool ok;\
-} PineOption_##Tname;\
-PineOption_##Tname pineoption_##Tname(T some);\
-PineOption_##Tname pineoptionnull_##Tname();\
-
-#define PineOptionImp(T, Tname)\
-PineOption_##Tname pineoption_##Tname(T some) {\
-    PineOption_##Tname ret;\
-    ret.some = some;\
-    ret.ok = true;\
-    return ret;\
-}\
-PineOption_##Tname pineoptionnull_##Tname() {\
-    PineOption_##Tname ret;\
-    ret.ok = false;\
-    return ret;\
-}
+} PineOption_##Tname;
+#define pineoption(Tname, val) (PineOption_##Tname){.some = (val), .ok = true}
+#define pineoptionnull(Tname) (PineOption_##Tname){.ok = false}
 
