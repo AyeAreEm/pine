@@ -1,43 +1,37 @@
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "include/exprs.h"
-#include "include/lexer.h"
-#include "include/types.h"
-#include "include/stb_ds.h"
 
 Expr expr_none(void) {
     return (Expr){.kind = EkNone};
 }
 
-Expr expr_true(size_t index) {
+Expr expr_true(Cursor cursor) {
     return (Expr){
         .kind = EkTrue,
-        .cursors_idx = index,
-        .type = type_bool(TYPEVAR, index),
+        .cursor = cursor,
+        .type = type_bool(TYPEVAR, cursor),
     };
 }
 
-Expr expr_false(size_t index) {
+Expr expr_false(Cursor cursor) {
     return (Expr){
         .kind = EkFalse,
-        .cursors_idx = index,
-        .type = type_bool(TYPEVAR, index),
+        .cursor = cursor,
+        .type = type_bool(TYPEVAR, cursor),
     };
 }
 
-Expr expr_null(Type t, size_t index) {
+Expr expr_null(Type t, Cursor cursor) {
     return (Expr){
         .kind = EkNull,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
     };
 }
 
-Expr expr_type(Type v, size_t index) {
+Expr expr_type(Type v, Cursor cursor) {
     return (Expr){
         .kind = EkType,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = (Type){
             .kind = TkTypeId,
         },
@@ -45,127 +39,127 @@ Expr expr_type(Type v, size_t index) {
     };
 }
 
-Expr expr_intlit(const char *s, Type t, size_t index) {
+Expr expr_intlit(const char *s, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkIntLit,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .lit = s,
     };
 }
 
-Expr expr_floatlit(const char *s, Type t, size_t index) {
+Expr expr_floatlit(const char *s, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkFloatLit,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .lit = s,
     };
 }
 
-Expr expr_charlit(const char *s, size_t index) {
+Expr expr_charlit(const char *s, Cursor cursor) {
     return (Expr){
         .kind = EkCharLit,
-        .cursors_idx = index,
-        .type = type_char(TYPEVAR, index),
+        .cursor = cursor,
+        .type = type_char(TYPEVAR, cursor),
         .lit = s,
     };
 }
 
-Expr expr_strlit(const char *s, size_t index) {
+Expr expr_strlit(const char *s, Cursor cursor) {
     return (Expr){
         .kind = EkStrLit,
-        .cursors_idx = index,
-        .type = type_string(TkUntypedString, TYPEVAR, index),
+        .cursor = cursor,
+        .type = type_string(TkUntypedString, TYPEVAR, cursor),
         .lit = s,
     };
 }
 
-Expr expr_ident(const char *v, Type t, size_t index) {
+Expr expr_ident(const char *v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkIdent,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .ident = v,
     };
 }
 
-Expr expr_literal(Literal v, Type t, size_t index) {
+Expr expr_literal(Literal v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkLiteral,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .literal = v,
     };
 }
 
-Expr expr_fncall(FnCall v, Type t, size_t index) {
+Expr expr_fncall(FnCall v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkFnCall,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .fncall = v,
     };
 }
 
-Expr expr_binop(Binop v, Type t, size_t index) {
+Expr expr_binop(Binop v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkBinop,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .binop = v,
     };
 }
 
-Expr expr_unop(Unop v, Type t, size_t index) {
+Expr expr_unop(Unop v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkUnop,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .unop = v,
     };
 }
 
-Expr expr_group(Arr(Expr) v, Type t, size_t index) {
+Expr expr_group(Arr(Expr) v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkGrouping,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .group = v,
     };
 }
 
-Expr expr_range(RangeLit v, Type t, size_t index) {
+Expr expr_range(RangeLit v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkRangeLit,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .rangelit = v,
     };
 }
 
-Expr expr_fieldaccess(FieldAccess v, Type t, size_t index) {
+Expr expr_fieldaccess(FieldAccess v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkFieldAccess,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .fieldacc = v,
     };
 }
 
-Expr expr_arrayindex(ArrayIndex v, Type t, size_t index) {
+Expr expr_arrayindex(ArrayIndex v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkArrayIndex,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .arrayidx = v,
     };
 }
 
-Expr expr_arrayslice(ArraySlice v, Type t, size_t index) {
+Expr expr_arrayslice(ArraySlice v, Type t, Cursor cursor) {
     return (Expr){
         .kind = EkArraySlice,
-        .cursors_idx = index,
+        .cursor = cursor,
         .type = t,
         .arrayslice = v,
     };

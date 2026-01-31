@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "lexer.h"
 #include "strb.h"
 
 typedef struct Type Type;
@@ -71,7 +72,7 @@ typedef struct Range {
 } Range;
 
 typedef struct Type {
-    size_t cursors_idx;
+    Cursor cursor;
     TypeKind kind;
     bool constant;
 
@@ -94,17 +95,17 @@ strb string_from_type(Type t);
 bool is_untyped(Type t);
 
 Type type_none(void);
-Type type_void(CONSTNESS constant, size_t index);
-Type type_bool(CONSTNESS constant, size_t index);
-Type type_char(CONSTNESS constant, size_t index);
-Type type_string(TypeKind kind, CONSTNESS constant, size_t index);
-Type type_number(TypeKind kind, CONSTNESS constant, size_t index);
-Type type_range(Range v, CONSTNESS constant, size_t index);
-Type type_slice(Slice v, CONSTNESS constant, size_t index);
-Type type_array(Array v, CONSTNESS constant, size_t index);
-Type type_ptr(Type *v, CONSTNESS constant, size_t index);
-Type type_option(Option v, CONSTNESS constant, size_t index);
-Type type_typedef(const char *v, CONSTNESS constant, size_t index);
+Type type_void(CONSTNESS constant, Cursor cursor);
+Type type_bool(CONSTNESS constant, Cursor cursor);
+Type type_char(CONSTNESS constant, Cursor cursor);
+Type type_string(TypeKind kind, CONSTNESS constant, Cursor cursor);
+Type type_number(TypeKind kind, CONSTNESS constant, Cursor cursor);
+Type type_range(Range v, CONSTNESS constant, Cursor cursor);
+Type type_slice(Slice v, CONSTNESS constant, Cursor cursor);
+Type type_array(Array v, CONSTNESS constant, Cursor cursor);
+Type type_ptr(Type *v, CONSTNESS constant, Cursor cursor);
+Type type_option(Option v, CONSTNESS constant, Cursor cursor);
+Type type_typedef(const char *v, CONSTNESS constant, Cursor cursor);
 Type type_poison(void);
 
 #endif // TYPES_H

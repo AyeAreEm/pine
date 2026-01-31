@@ -1,8 +1,13 @@
 pine
 pine.exe
+
 test
 test.exe
+test.dSYM/
+
+test/
+
 output.c
 output.h
-test.dSYM/
+
 bin/*.o

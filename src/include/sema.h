@@ -18,7 +18,7 @@ typedef struct SymTab {
 } SymTab;
 
 SymTab symtab_init(void);
-Stmnt symtab_find(Sema *sema, const char *key, size_t cursor_idx);
+Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor);
 void symtab_push(Sema *sema, const char *key, Stmnt value);
 void symtab_new_scope(Sema *sema);
 void symtab_pop_scope(Sema *sema);
@@ -61,11 +61,10 @@ typedef struct Sema {
     Dgraph dgraph;
 
     const char *filename;
-    Arr(Cursor) cursors;
     int error_count;
 } Sema;
 
-Sema sema_init(Arr(Stmnt) ast, const char *filename, Arr(Cursor) cursors);
+Sema sema_init(Arr(Stmnt) ast, const char *filename);
 Type *resolve_expr_type(Sema *sema, Expr *expr);
 void sema_analyse(Sema *sema);
 void sema_extern(Sema *sema, Stmnt *stmnt);

@@ -6,6 +6,11 @@
 #include "stb_ds.h"
 #include "strb.h"
 
+typedef struct Cursor {
+    uint32_t row;
+    uint32_t col;
+} Cursor;
+
 typedef enum TokenKind {
     TokIdent,
     TokIntLit,
@@ -56,31 +61,20 @@ const char *tokenkind_stringify(TokenKind kind);
 
 typedef struct Token {
     TokenKind kind;
+    Cursor cursor;
     const char *string;
 } Token;
 
 Token token_none(void);
-Token token_ident(const char *s);
-Token token_intlit(const char *s);
-Token token_floatlit(const char *s);
-Token token_charlit(const char *s);
-Token token_strlit(const char *s);
-Token token_directive(const char *s);
 void print_tokens(Token *tokens);
 
 // returns strb, needs to be freed
 strb token_stringify(Token tok);
 
-typedef struct Cursor {
-    uint32_t row;
-    uint32_t col;
-} Cursor;
-
 #define BUF_CAP 255
 
 typedef struct Lexer {
     Arr(Token) tokens;
-    Arr(Cursor) cursors;
 
     char ch;
     char buf[BUF_CAP];

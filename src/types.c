@@ -8,104 +8,104 @@ Type type_none(void) {
     return (Type){.kind = TkNone};
 }
 
-Type type_void(CONSTNESS constant, size_t index) {
+Type type_void(CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkVoid,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_bool(CONSTNESS constant, size_t index) {
+Type type_bool(CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkBool,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_char(CONSTNESS constant, size_t index) {
+Type type_char(CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkChar,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_string(TypeKind kind, CONSTNESS constant, size_t index) {
+Type type_string(TypeKind kind, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = kind,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_cstring(CONSTNESS constant, size_t index) {
+Type type_cstring(CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkCstring,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_number(TypeKind kind, CONSTNESS constant, size_t index) {
+Type type_number(TypeKind kind, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = kind,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Type type_range(Range v, CONSTNESS constant, size_t index) {
+Type type_range(Range v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkRange,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .range = v,
     };
 }
 
-Type type_slice(Slice v, CONSTNESS constant, size_t index) {
+Type type_slice(Slice v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkSlice,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .slice = v,
     };
 }
 
-Type type_array(Array v, CONSTNESS constant, size_t index) {
+Type type_array(Array v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkArray,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .array = v,
     };
 }
 
-Type type_ptr(Type *v, CONSTNESS constant, size_t index) {
+Type type_ptr(Type *v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkPtr,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .ptr_to = v,
     };
 }
 
-Type type_option(Option v, CONSTNESS constant, size_t index) {
+Type type_option(Option v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkOption,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .option = v,
     };
 }
 
-Type type_typedef(const char *v, CONSTNESS constant, size_t index) {
+Type type_typedef(const char *v, CONSTNESS constant, Cursor cursor) {
     return (Type){
         .kind = TkTypeDef,
         .constant = constant,
-        .cursors_idx = index,
+        .cursor = cursor,
         .typedeff = v,
     };
 }

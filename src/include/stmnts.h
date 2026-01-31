@@ -111,27 +111,18 @@ typedef struct ForEach {
 
 typedef enum DirectiveKind {
     DkNone,
-    DkLink,
-    DkSyslink,
-    DkOutput,
-    DkO0,
-    DkO1,
-    DkO2,
-    DkO3,
-    DkOdebug,
-    DkOfast,
-    DkOsmall,
+    DkImport,
 } DirectiveKind;
 
 typedef struct Directive {
     DirectiveKind kind;
 
-    const char *str; // link, syslink, output
+    const char *str; // import 
 } Directive;
 
 typedef struct Stmnt {
     StmntKind kind;
-    size_t cursors_idx;
+    Cursor cursor;
 
     union {
         FnDecl fndecl;
@@ -158,28 +149,28 @@ typedef struct Stmnt {
 } Stmnt;
 
 Stmnt stmnt_none(void);
-Stmnt stmnt_extern(Stmnt *v, size_t index);
-Stmnt stmnt_fndecl(FnDecl v, size_t index);
-Stmnt stmnt_structdecl(StructDecl v, size_t index);
-Stmnt stmnt_enumdecl(EnumDecl v, size_t index);
-Stmnt stmnt_vardecl(VarDecl v, size_t index);
-Stmnt stmnt_varreassign(VarReassign v, size_t index);
-Stmnt stmnt_constdecl(ConstDecl v, size_t index);
+Stmnt stmnt_extern(Stmnt *v, Cursor cursor);
+Stmnt stmnt_fndecl(FnDecl v, Cursor cursor);
+Stmnt stmnt_structdecl(StructDecl v, Cursor cursor);
+Stmnt stmnt_enumdecl(EnumDecl v, Cursor cursor);
+Stmnt stmnt_vardecl(VarDecl v, Cursor cursor);
+Stmnt stmnt_varreassign(VarReassign v, Cursor cursor);
+Stmnt stmnt_constdecl(ConstDecl v, Cursor cursor);
 
-Stmnt stmnt_return(Return v, size_t index);
-Stmnt stmnt_continue(size_t index);
-Stmnt stmnt_break(size_t index);
-Stmnt stmnt_fall(size_t index);
-Stmnt stmnt_defer(Stmnt *v, size_t index);
+Stmnt stmnt_return(Return v, Cursor cursor);
+Stmnt stmnt_continue(Cursor cursor);
+Stmnt stmnt_break(Cursor cursor);
+Stmnt stmnt_fall(Cursor cursor);
+Stmnt stmnt_defer(Stmnt *v, Cursor cursor);
 
-Stmnt stmnt_if(If v, size_t index);
-Stmnt stmnt_switch(Switch v, size_t index);
-Stmnt stmnt_case(Case v, size_t index);
-Stmnt stmnt_for(For v, size_t index);
-Stmnt stmnt_foreach(ForEach v, size_t index);
-Stmnt stmnt_block(Arr(Stmnt) v, size_t index);
+Stmnt stmnt_if(If v, Cursor cursor);
+Stmnt stmnt_switch(Switch v, Cursor cursor);
+Stmnt stmnt_case(Case v, Cursor cursor);
+Stmnt stmnt_for(For v, Cursor cursor);
+Stmnt stmnt_foreach(ForEach v, Cursor cursor);
+Stmnt stmnt_block(Arr(Stmnt) v, Cursor cursor);
 
-Stmnt stmnt_directive(Directive v, size_t index);
-Stmnt stmnt_fncall(FnCall v, size_t index);
+Stmnt stmnt_directive(Directive v, Cursor cursor);
+Stmnt stmnt_fncall(FnCall v, Cursor cursor);
 
 #endif // STMNTS_H

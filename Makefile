@@ -27,6 +27,7 @@ HEADER_LEXER = src/include/lexer.h
 
 SRC_MAIN = src/main.c
 BIN_MAIN = bin/main.o
+HEADER_COMPILER = src/include/compiler.h
 
 SRC_PARSER = src/parser.c
 BIN_PARSER = bin/parser.o
@@ -89,7 +90,7 @@ $(BIN_KEYWORDS): $(SRC_KEYWORDS) $(HEADER_KEYWORDS)
 $(BIN_LEXER): $(SRC_LEXER) $(HEADER_LEXER)
 	$(CC) $(CFLAGS) -c $(SRC_LEXER) -o $(BIN_LEXER)
 
-$(BIN_MAIN): $(SRC_MAIN)
+$(BIN_MAIN): $(SRC_MAIN) $(HEADER_COMPILER)
 	$(CC) $(CFLAGS) -c $(SRC_MAIN) -o $(BIN_MAIN)
 
 $(BIN_PARSER): $(SRC_PARSER) $(HEADER_PARSER)

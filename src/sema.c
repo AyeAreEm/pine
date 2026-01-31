@@ -5,6 +5,7 @@
 #include <string.h>
 #include "include/eval.h"
 #include "include/exprs.h"
+#include "include/lexer.h"
 #include "include/stb_ds.h"
 #include "include/sema.h"
 #include "include/stmnts.h"
@@ -15,9 +16,9 @@
 
 #define ERRORS_MAX 5
 
-static void elog(Sema *sema, size_t i, const char *msg, ...) {
+static void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
     sema->error_count++;
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, sema->cursors[i].row, sema->cursors[i].col);
+    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
 
     va_list args;
     va_start(args, msg);
@@ -83,7 +84,7 @@ SymTab symtab_init(void) {
     return symtab;
 }
 
-Stmnt symtab_find(Sema *sema, const char *key, size_t cursor_idx) {
+Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor) {
     size_t index = 0;
     bool found = false;
 
@@ -101,15 +102,15 @@ Stmnt symtab_find(Sema *sema, const char *key, size_t cursor_idx) {
     Stmnt stmnt = ast_find_decl(sema->ast, key);
     if (stmnt.kind != SkNone) return stmnt;
 
-    elog(sema, cursor_idx, "use of undefined \"%s\"", key);
+    elog(sema, cursor, "use of undefined \"%s\"", key);
     return stmnt_none();
 }
 
 void symtab_push(Sema *sema, const char *key, Stmnt value) {
     for (size_t i = 0; i < arrlenu(sema->symtab.keys[sema->symtab.cur_scope]); i++) {
         if (streq(key, sema->symtab.keys[sema->symtab.cur_scope][i])) {
-            size_t index = sema->symtab.stmnts[sema->symtab.cur_scope][i].cursors_idx;
-            elog(sema, value.cursors_idx, "redeclaration of \"%s\" from %zu:%zu", key, sema->cursors[index].row, sema->cursors[index].col);
+            Cursor cursor = sema->symtab.stmnts[sema->symtab.cur_scope][i].cursor;
+            elog(sema, value.cursor, "redeclaration of \"%s\" from %zu:%zu", key, cursor.row, cursor.col);
             return;
         }
     }
@@ -160,7 +161,7 @@ void dgraph_push(Dgraph *graph, Dnode node) {
     }
 }
 
-Sema sema_init(Arr(Stmnt) ast, const char *filename, Arr(Cursor) cursors) {
+Sema sema_init(Arr(Stmnt) ast, const char *filename) {
     hmsi64 *typedef_sizes = NULL;
     shdefault(typedef_sizes, -1);
 
@@ -181,7 +182,6 @@ Sema sema_init(Arr(Stmnt) ast, const char *filename, Arr(Cursor) cursors) {
         .dgraph = dgraph_init(),
 
         .filename = filename,
-        .cursors = cursors,
         .error_count = 0,
     };
 }
@@ -200,7 +200,7 @@ static Type type_of_stmnt(Sema *sema, Stmnt stmnt) {
             return stmnt.fndecl.type;
         case SkFnCall:
             assert(stmnt.fncall.name->kind == EkIdent);
-            Stmnt decl = symtab_find(sema, stmnt.fncall.name->ident, stmnt.cursors_idx);
+            Stmnt decl = symtab_find(sema, stmnt.fncall.name->ident, stmnt.cursor);
             assert(decl.kind == SkFnDecl);
             return decl.fndecl.type;
         case SkVarDecl:
@@ -212,31 +212,31 @@ static Type type_of_stmnt(Sema *sema, Stmnt stmnt) {
         case SkReturn:
             return stmnt.returnf.type;
         case SkStructDecl:
-            elog(sema, stmnt.cursors_idx, "unexpected struct declaration");
+            elog(sema, stmnt.cursor, "unexpected struct declaration");
             return type_poison();
         case SkEnumDecl:
-            elog(sema, stmnt.cursors_idx, "unexpected enum declaration");
+            elog(sema, stmnt.cursor, "unexpected enum declaration");
             return type_poison();
         case SkContinue:
-            elog(sema, stmnt.cursors_idx, "unexpected continue statement");
+            elog(sema, stmnt.cursor, "unexpected continue statement");
             return type_poison();
         case SkBreak:
-            elog(sema, stmnt.cursors_idx, "unexpected break statement");
+            elog(sema, stmnt.cursor, "unexpected break statement");
             return type_poison();
         case SkBlock:
-            elog(sema, stmnt.cursors_idx, "unexpected scope block");
+            elog(sema, stmnt.cursor, "unexpected scope block");
             return type_poison();
         case SkIf:
-            elog(sema, stmnt.cursors_idx, "unexpected if statement");
+            elog(sema, stmnt.cursor, "unexpected if statement");
             return type_poison();
         case SkFor:
-            elog(sema, stmnt.cursors_idx, "unexpected for loop");
+            elog(sema, stmnt.cursor, "unexpected for loop");
             return type_poison();
         case SkExtern:
-            elog(sema, stmnt.cursors_idx, "unexpected extern statement");
+            elog(sema, stmnt.cursor, "unexpected extern statement");
             return type_poison();
         case SkDirective:
-            elog(sema, stmnt.cursors_idx, "unexpected directive");
+            elog(sema, stmnt.cursor, "unexpected directive");
             return type_poison();
         default:
             return type_poison();
@@ -284,13 +284,13 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
                 return &expr->type;
             }
 
-            Stmnt decl = symtab_find(sema, expr->ident, expr->cursors_idx);
+            Stmnt decl = symtab_find(sema, expr->ident, expr->cursor);
             if (decl.kind == SkVarDecl) {
                 expr->type = decl.vardecl.type;
             } else if (decl.kind == SkConstDecl) {
                 expr->type = decl.constdecl.type;
             } else {
-                elog(sema, expr->cursors_idx, "expected ident to be a variable or constant");
+                elog(sema, expr->cursor, "expected ident to be a variable or constant");
                 // NOTE: This leaks memory but the program will exit right after sema
                 Type *type = ealloc(sizeof(Type)); *type = type_poison();
                 return type;
@@ -301,7 +301,7 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
                 return &expr->type;
             }
 
-            Stmnt call = symtab_find(sema, expr->fncall.name->ident, expr->cursors_idx);
+            Stmnt call = symtab_find(sema, expr->fncall.name->ident, expr->cursor);
             expr->type = call.fndecl.type;
             return &expr->type;
         case EkType:
@@ -318,45 +318,18 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
 
 void sema_directive(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkDirective);
-
-    switch (stmnt->directive.kind) {
-        case DkLink:
-        case DkSyslink:
-            return;
-        case DkOutput:
-            if (!sema->compile_flags.output) {
-                sema->compile_flags.output = true;
-            } else {
-                elog(sema, stmnt->cursors_idx, "output already set, cannot have more than one output directive");
-            }
-            break;
-        case DkO0:
-        case DkO1:
-        case DkO2:
-        case DkO3:
-        case DkOdebug:
-        case DkOfast:
-        case DkOsmall:
-            if (!sema->compile_flags.optimise) {
-                sema->compile_flags.optimise = true;
-            } else {
-                elog(sema, stmnt->cursors_idx, "optimisation already set, cannot have more than one optimisation directive");
-            }
-            break;
-        default:
-            break;
-    }
+    (void)sema;
 }
 
-static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t cursor_idx) {
+static Expr get_field(Sema *sema, Type type, const char *fieldname, Cursor cursor) {
     switch (type.kind) {
         case TkPtr:
-            return get_field(sema, *type.ptr_to, fieldname, cursor_idx);
+            return get_field(sema, *type.ptr_to, fieldname, cursor);
         case TkString: {
             enum { StringFieldsLen = 2 };
             Expr StringFields[StringFieldsLen] = {
-                expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx),
-                expr_ident("ptr", type_string(TkCstring, TYPECONST, cursor_idx), cursor_idx),
+                expr_ident("len", type_number(TkUsize, TYPECONST, cursor), cursor),
+                expr_ident("ptr", type_string(TkCstring, TYPECONST, cursor), cursor),
             };
 
             for (size_t i = 0; i < StringFieldsLen; i++) {
@@ -364,20 +337,20 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
                     return StringFields[i];
                 }
             }
-            elog(sema, cursor_idx, "string does not have field \"%s\"", fieldname);
+            elog(sema, cursor, "string does not have field \"%s\"", fieldname);
         } break;
         case TkSlice: {
-            Expr slice_len = expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx);
+            Expr slice_len = expr_ident("len", type_number(TkUsize, TYPECONST, cursor), cursor);
             if (streq(fieldname, slice_len.ident)) {
                 return slice_len;
             }
-            elog(sema, cursor_idx, "slice does not have field \"%s\"", fieldname);
+            elog(sema, cursor, "slice does not have field \"%s\"", fieldname);
         } break;
         case TkArray: {
             enum { ArrayFieldsLen = 2 };
             Expr ArrayFields[ArrayFieldsLen] = {
-                expr_ident("len", type_number(TkUsize, TYPECONST, cursor_idx), cursor_idx),
-                expr_ident("ptr", type_ptr(type.array.of, type.constant, cursor_idx), cursor_idx),
+                expr_ident("len", type_number(TkUsize, TYPECONST, cursor), cursor),
+                expr_ident("ptr", type_ptr(type.array.of, type.constant, cursor), cursor),
             };
 
             for (size_t i = 0; i < ArrayFieldsLen; i++) {
@@ -385,32 +358,32 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
                     return ArrayFields[i];
                 }
             }
-            elog(sema, cursor_idx, "array does not have field \"%s\"", fieldname);
+            elog(sema, cursor, "array does not have field \"%s\"", fieldname);
         } break;
         case TkTypeDef: {
-            Stmnt typedeff = symtab_find(sema, type.typedeff, cursor_idx);
+            Stmnt typedeff = symtab_find(sema, type.typedeff, cursor);
 
             if (typedeff.kind == SkStructDecl) {
                 for (size_t i = 0; i < arrlenu(typedeff.structdecl.fields); i++) {
                     Stmnt decl = typedeff.structdecl.fields[i];
                     assert(decl.kind == SkVarDecl);
                     if (decl_has_name(decl, fieldname)) {
-                        return expr_ident(fieldname, decl.vardecl.type, cursor_idx);
+                        return expr_ident(fieldname, decl.vardecl.type, cursor);
                     }
                 }
                 strb t = string_from_type(type);
-                elog(sema, cursor_idx, "%s does not have field \"%s\" ", t, fieldname);
+                elog(sema, cursor, "%s does not have field \"%s\" ", t, fieldname);
                 strbfree(t);
             } else if (typedeff.kind == SkEnumDecl) {
                 for (size_t i = 0; i < arrlenu(typedeff.enumdecl.fields); i++) {
                     Stmnt decl = typedeff.enumdecl.fields[i];
                     assert(decl.kind == SkConstDecl);
                     if (decl_has_name(decl, fieldname)) {
-                        return expr_ident(fieldname, type, cursor_idx);
+                        return expr_ident(fieldname, type, cursor);
                     }
                 }
                 strb t = string_from_type(type);
-                elog(sema, cursor_idx, "%s does not have field \"%s\" ", t, fieldname);
+                elog(sema, cursor, "%s does not have field \"%s\" ", t, fieldname);
             } else {
                 strb t = string_from_type(type);
                 comp_elog("get_field unreachable type: %s", t);
@@ -418,7 +391,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, size_t curso
             }
         } break;
         default:
-            elog(sema, cursor_idx, "primitive type does not have field \"%s\"", fieldname);
+            elog(sema, cursor, "primitive type does not have field \"%s\"", fieldname);
             break;
     }
 
@@ -432,17 +405,17 @@ void sema_range_lit(Sema *sema, Expr *expr, bool slice) {
     sema_expr(sema, expr->rangelit.end);
 
     if (!slice && (expr->rangelit.start->kind == EkNone || expr->rangelit.end->kind == EkNone)) {
-        elog(sema, expr->cursors_idx, "range literals must have both a start and end if not used for slicing");
+        elog(sema, expr->cursor, "range literals must have both a start and end if not used for slicing");
     }
 
     if (slice && expr->rangelit.end->kind == EkNone && expr->rangelit.inclusive) {
-        elog(sema, expr->cursors_idx, "range slice cannot be inclusive when end is inferred");
+        elog(sema, expr->cursor, "range slice cannot be inclusive when end is inferred");
     }
 
     if (tc_is_unsigned(sema, *expr->rangelit.start)) {
-        *expr->type.range.subtype = type_number(TkUsize, TYPEVAR, expr->type.range.subtype->cursors_idx);
+        *expr->type.range.subtype = type_number(TkUsize, TYPEVAR, expr->type.range.subtype->cursor);
     } else {
-        *expr->type.range.subtype = type_number(TkIsize, TYPEVAR, expr->type.range.subtype->cursors_idx);
+        *expr->type.range.subtype = type_number(TkIsize, TYPEVAR, expr->type.range.subtype->cursor);
     }
 }
 
@@ -453,7 +426,7 @@ void sema_field_access(Sema *sema, Expr *expr) {
     Type *type = resolve_expr_type(sema, expr->fieldacc.accessing);
     if (!expr->fieldacc.deref) {
         assert(expr->fieldacc.field->kind == EkIdent);
-        Expr field = get_field(sema, *type, expr->fieldacc.field->ident, expr->cursors_idx);
+        Expr field = get_field(sema, *type, expr->fieldacc.field->ident, expr->cursor);
         *expr->fieldacc.field = field;
         expr->type = field.type;
         sema_expr(sema, expr->fieldacc.field);
@@ -466,7 +439,7 @@ void sema_field_access(Sema *sema, Expr *expr) {
     } else {
         expr->type = type_poison();
         strb t = string_from_type(expr->fieldacc.accessing->type);
-        elog(sema, expr->cursors_idx, "cannot derefernce %s, not a pointer", t);
+        elog(sema, expr->cursor, "cannot derefernce %s, not a pointer", t);
         strbfree(t);
     }
 }
@@ -484,7 +457,7 @@ void sema_array_slice(Sema *sema, Expr *expr) {
     if (arrtype->kind == TkArray) {
         expr->type = type_slice((Slice){
             .of = arrtype->array.of,
-        }, arrtype->constant, expr->cursors_idx);
+        }, arrtype->constant, expr->cursor);
 
         uint64_t len_n = eval_expr(sema, arrtype->array.len);
 
@@ -497,21 +470,21 @@ void sema_array_slice(Sema *sema, Expr *expr) {
         else end_n = eval_expr(sema, end);
 
         if (start_n >= len_n) {
-            elog(sema, expr->cursors_idx, "slice out of bounds, array length is %" PRIu64 ", slice start is %" PRIu64, len_n, start_n);
+            elog(sema, expr->cursor, "slice out of bounds, array length is %" PRIu64 ", slice start is %" PRIu64, len_n, start_n);
         }
         if (end_n >= len_n) {
-            elog(sema, expr->cursors_idx, "slice out of bounds, array length is %" PRIu64 ", slice end is %" PRIu64, len_n, end_n);
+            elog(sema, expr->cursor, "slice out of bounds, array length is %" PRIu64 ", slice end is %" PRIu64, len_n, end_n);
         }
     } else if (arrtype->kind == TkSlice) {
         expr->type = type_slice((Slice){
             .of = arrtype->slice.of,
-        }, arrtype->constant, expr->cursors_idx);
+        }, arrtype->constant, expr->cursor);
     } else if (arrtype->kind == TkPoison) {
         expr->type = type_poison();
     } else {
         expr->type = type_poison();
         strb t = string_from_type(*arrtype);
-        elog(sema, expr->cursors_idx, "cannot slice %s, not an array", t);
+        elog(sema, expr->cursor, "cannot slice %s, not an array", t);
         strbfree(t);
     }
 }
@@ -539,14 +512,14 @@ void sema_array_index(Sema *sema, Expr *expr) {
         uint64_t index = eval_expr(sema, expr->arrayidx.index);
         uint64_t len = eval_expr(sema, arrtype->array.len);
         if (index >= len) {
-            elog(sema, expr->cursors_idx, "index %zu out of bounds: 0..<%zu", index, len);
+            elog(sema, expr->cursor, "index %zu out of bounds: 0..<%zu", index, len);
         }
     } else if (arrtype->kind == TkSlice) {
         expr->type = *arrtype->slice.of;
     } else {
         expr->type = type_poison();
         strb t = string_from_type(*arrtype);
-        elog(sema, expr->cursors_idx, "cannot index into %s, not an array", t);
+        elog(sema, expr->cursor, "cannot index into %s, not an array", t);
         strbfree(t);
     }
 
@@ -556,7 +529,7 @@ void sema_slice_literal(Sema *sema, Expr *expr) {
     assert(expr->kind == EkLiteral);
 
     if (expr->literal.kind == LitkVars) {
-        elog(sema, expr->cursors_idx, "slice literal cannot have named fields");
+        elog(sema, expr->cursor, "slice literal cannot have named fields");
     }
 
     Type *type = &expr->type;
@@ -577,7 +550,7 @@ void sema_slice_literal(Sema *sema, Expr *expr) {
         if (!tc_equals(sema, *slice->of, valtype)) {
             strb t1 = string_from_type(*valtype);
             strb t2 = string_from_type(*slice->of);
-            elog(sema, expr->cursors_idx, "slice element %zu type is %s, but expected %s", i + 1, t1, t2);
+            elog(sema, expr->cursor, "slice element %zu type is %s, but expected %s", i + 1, t1, t2);
             strbfree(t1); strbfree(t2);
         } else {
             tc_number_within_bounds(sema, *slice->of, expr->literal.exprs[i]);
@@ -589,7 +562,7 @@ void sema_array_literal(Sema *sema, Expr *expr) {
     assert(expr->kind == EkLiteral);
 
     if (expr->literal.kind == LitkVars) {
-        elog(sema, expr->cursors_idx, "array literal cannot have named fields");
+        elog(sema, expr->cursor, "array literal cannot have named fields");
         return;
     }
 
@@ -605,14 +578,14 @@ void sema_array_literal(Sema *sema, Expr *expr) {
     if (array->len->kind != EkNone) {
         uint64_t len = eval_expr(sema, array->len);
         if (arrlenu(expr->literal.exprs) != (size_t)len) {
-            elog(sema, expr->cursors_idx, "array length %zu, literal length %zu", (size_t)len, arrlenu(expr->literal.exprs));
+            elog(sema, expr->cursor, "array length %zu, literal length %zu", (size_t)len, arrlenu(expr->literal.exprs));
             return;
         }
     } else {
         *array->len = expr_intlit(
             u64_to_string((uint64_t)arrlenu(expr->literal.exprs)),
-            type_number(TkUsize, TYPECONST, expr->cursors_idx),
-            expr->cursors_idx
+            type_number(TkUsize, TYPECONST, expr->cursor),
+            expr->cursor
         );
     }
 
@@ -625,7 +598,7 @@ void sema_array_literal(Sema *sema, Expr *expr) {
         if (!tc_equals(sema, *array->of, valtype)) {
             strb t1 = string_from_type(*valtype);
             strb t2 = string_from_type(*array->of);
-            elog(sema, expr->cursors_idx, "array element %zu type is %s, but expected %s", i + 1, t1, t2);
+            elog(sema, expr->cursor, "array element %zu type is %s, but expected %s", i + 1, t1, t2);
             strbfree(t1); strbfree(t2);
         } else {
             tc_number_within_bounds(sema, *array->of, expr->literal.exprs[i]);
@@ -635,15 +608,15 @@ void sema_array_literal(Sema *sema, Expr *expr) {
 
 void sema_typedef_literal(Sema *sema, Expr *expr) {
     assert(expr->kind == EkLiteral);
-    Stmnt typedeff = symtab_find(sema, expr->type.typedeff, expr->cursors_idx);
+    Stmnt typedeff = symtab_find(sema, expr->type.typedeff, expr->cursor);
     if (typedeff.kind != SkStructDecl) {
-        elog(sema, expr->cursors_idx, "expected literal type to be from a struct");
+        elog(sema, expr->cursor, "expected literal type to be from a struct");
         return;
     }
 
     if (expr->literal.kind == LitkExprs) {
         if (arrlenu(expr->literal.exprs) != arrlenu(typedeff.structdecl.fields)) {
-            elog(sema, expr->cursors_idx, "expected %zu elements, got %zu", arrlenu(typedeff.structdecl.fields), arrlenu(expr->literal.exprs));
+            elog(sema, expr->cursor, "expected %zu elements, got %zu", arrlenu(typedeff.structdecl.fields), arrlenu(expr->literal.exprs));
             return;
         }
 
@@ -658,19 +631,19 @@ void sema_typedef_literal(Sema *sema, Expr *expr) {
             if (!tc_equals(sema, fieldtype, valtype)) {
                 strb t1 = string_from_type(*valtype);
                 strb t2 = string_from_type(fieldtype);
-                elog(sema, expr->literal.exprs[i].cursors_idx, "field %zu type is %s, but expected %s", i + 1, t1, t2);
+                elog(sema, expr->literal.exprs[i].cursor, "field %zu type is %s, but expected %s", i + 1, t1, t2);
                 strbfree(t1); strbfree(t2);
             }
         }
     } else if (expr->literal.kind == LitkVars) {
         if (arrlenu(expr->literal.vars) != arrlenu(typedeff.structdecl.fields)) {
-            elog(sema, expr->cursors_idx, "expected %zu elements, got %zu", arrlenu(typedeff.structdecl.fields), arrlenu(expr->literal.vars));
+            elog(sema, expr->cursor, "expected %zu elements, got %zu", arrlenu(typedeff.structdecl.fields), arrlenu(expr->literal.vars));
             return;
         }
 
         for (size_t i = 0; i < arrlenu(expr->literal.vars); i++) {
             Type *valtype = resolve_expr_type(sema, &expr->literal.vars[i].varreassign.value);
-            Expr field = get_field(sema, expr->type, expr->literal.vars[i].varreassign.name.ident, expr->literal.vars[i].cursors_idx);
+            Expr field = get_field(sema, expr->type, expr->literal.vars[i].varreassign.name.ident, expr->literal.vars[i].cursor);
 
             if (valtype->kind == TkPoison || field.type.kind == TkPoison) {
                 continue;
@@ -685,7 +658,7 @@ void sema_typedef_literal(Sema *sema, Expr *expr) {
             if (!tc_equals(sema, field.type, valtype)) {
                 strb t1 = string_from_type(*valtype);
                 strb t2 = string_from_type(field.type);
-                elog(sema, expr->literal.vars[i].cursors_idx, "field %s type is %s, but expected %s", field.ident, t1, t2);
+                elog(sema, expr->literal.vars[i].cursor, "field %s type is %s, but expected %s", field.ident, t1, t2);
                 strbfree(t1); strbfree(t2);
             }
         }
@@ -721,9 +694,9 @@ void sema_literal(Sema *sema, Expr *expr) {
 void sema_fn_call(Sema *sema, Expr *expr) {
     assert(expr->kind == EkFnCall);
 
-    Stmnt stmnt = symtab_find(sema, expr->fncall.name->ident, expr->cursors_idx);
+    Stmnt stmnt = symtab_find(sema, expr->fncall.name->ident, expr->cursor);
     if (stmnt.kind != SkFnDecl) {
-        elog(sema, expr->cursors_idx, "expected \"%s\" to be a function", expr->fncall.name->ident);
+        elog(sema, expr->cursor, "expected \"%s\" to be a function", expr->fncall.name->ident);
         return;
     }
 
@@ -739,7 +712,7 @@ void sema_fn_call(Sema *sema, Expr *expr) {
     size_t fncall_args_len = expr->fncall.arg_kind == LitkVars ? arrlenu(expr->fncall.args.vars) : arrlenu(expr->fncall.args.exprs);
 
     if (fncall_args_len > decl_args_len) {
-        elog(sema, expr->cursors_idx, "too many arugments, expected %zu, got %zu", decl_args_len, fncall_args_len);
+        elog(sema, expr->cursor, "too many arugments, expected %zu, got %zu", decl_args_len, fncall_args_len);
         return;
     }
 
@@ -767,7 +740,7 @@ void sema_fn_call(Sema *sema, Expr *expr) {
             if (!tc_equals(sema, darg_type, carg_type)) {
                 strb t1 = string_from_type(darg_type);
                 strb t2 = string_from_type(*carg_type);
-                elog(sema, expr->cursors_idx, "mismatch types, argument %zu is expected to be of type %s, got %s", i + 1, t1, t2);
+                elog(sema, expr->cursor, "mismatch types, argument %zu is expected to be of type %s, got %s", i + 1, t1, t2);
                 strbfree(t1); strbfree(t2);
                 pos_args[i] = expr_none();
             } else {
@@ -802,7 +775,7 @@ void sema_fn_call(Sema *sema, Expr *expr) {
                 bad_type = true;
                 strb t1 = string_from_type(darg_type);
                 strb t2 = string_from_type(*carg_type);
-                elog(sema, expr->cursors_idx, "mismatch types, argument %zu is expected to be of type %s, got %s", i + 1, t1, t2);
+                elog(sema, expr->cursor, "mismatch types, argument %zu is expected to be of type %s, got %s", i + 1, t1, t2);
                 strbfree(t1); strbfree(t2);
             }
 
@@ -836,7 +809,7 @@ void sema_fn_call(Sema *sema, Expr *expr) {
 
 void sema_fn_call_stmnt(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkFnCall);
-    Expr expr = expr_fncall(stmnt->fncall, type_none(), stmnt->cursors_idx);
+    Expr expr = expr_fncall(stmnt->fncall, type_none(), stmnt->cursor);
     sema_fn_call(sema, &expr);
     stmnt->fncall = expr.fncall;
 }
@@ -854,14 +827,14 @@ void sema_unop(Sema *sema, Expr *expr) {
                 expr->type = type_poison();
                 strb t1 = string_from_type(expr->unop.val->type);
                 strb t2 = string_from_type(expr->type);
-                elog(sema, expr->cursors_idx, "cannot cast %s to %s", t1, t2);
+                elog(sema, expr->cursor, "cannot cast %s to %s", t1, t2);
                 strbfree(t1); strbfree(t2);
             }
             // expr->unop.val->type = expr->type;
             break;
         case UkSizeof:
             if (expr->unop.val->kind != EkType && expr->unop.val->kind != EkIdent) {
-                elog(sema, expr->cursors_idx, "expected type or identifier in sizeof");
+                elog(sema, expr->cursor, "expected type or identifier in sizeof");
                 break;
             }
 
@@ -870,24 +843,24 @@ void sema_unop(Sema *sema, Expr *expr) {
 
             Expr newexpr = expr_intlit(
                 u64_to_string(eval_sizeof(sema, expr->unop.val->type)),
-                type_number(TkUsize, TYPECONST, expr->cursors_idx),
-                expr->cursors_idx
+                type_number(TkUsize, TYPECONST, expr->cursor),
+                expr->cursor
             );
 
             *expr = newexpr;
             break;
         case UkAddress:
             if (expr->unop.val->kind == EkIdent) {
-                Stmnt stmnt = symtab_find(sema, expr->unop.val->ident, expr->unop.val->cursors_idx);
+                Stmnt stmnt = symtab_find(sema, expr->unop.val->ident, expr->unop.val->cursor);
                 Type *type = ealloc(sizeof(Type)); *type = type_of_stmnt(sema, stmnt);
 
                 if (type->kind == TkPoison) {
                     expr->type = type_poison();
                 } else {
-                    expr->type = type_ptr(type, stmnt_is_constant(stmnt), stmnt.cursors_idx);
+                    expr->type = type_ptr(type, stmnt_is_constant(stmnt), stmnt.cursor);
                 }
             } else {
-                elog(sema, expr->cursors_idx, "cannot take address of expression not on stack");
+                elog(sema, expr->cursor, "cannot take address of expression not on stack");
                 expr->type = type_poison();
             }
             break;
@@ -902,7 +875,7 @@ void sema_unop(Sema *sema, Expr *expr) {
             }
 
             if (tc_is_unsigned(sema, *expr->unop.val)) {
-                elog(sema, expr->cursors_idx, "cannot negate unsigned integers");
+                elog(sema, expr->cursor, "cannot negate unsigned integers");
                 expr->type = type_poison();
             } else {
                 Type *valtype = resolve_expr_type(sema, expr->unop.val);
@@ -918,9 +891,9 @@ void sema_unop(Sema *sema, Expr *expr) {
                 return;
             }
 
-            if (!tc_equals(sema, type_bool(TYPEVAR, 0), type)) {
+            if (!tc_equals(sema, type_bool(TYPEVAR, (Cursor){0, 0}), type)) {
                 strb t = string_from_type(*type);
-                elog(sema, expr->cursors_idx, "expected a boolean after '!' operator, got %s", t);
+                elog(sema, expr->cursor, "expected a boolean after '!' operator, got %s", t);
                 strbfree(t);
                 expr->type = type_poison();
             } else {
@@ -937,7 +910,7 @@ void sema_unop(Sema *sema, Expr *expr) {
 
             if (!tc_can_bitwise(*type, *type)) {
                 strb t = string_from_type(*type);
-                elog(sema, expr->cursors_idx, "cannot do bitwise not (~) on %s", t);
+                elog(sema, expr->cursor, "cannot do bitwise not (~) on %s", t);
                 strbfree(t);
                 expr->type = type_poison();
             } else {
@@ -1021,7 +994,7 @@ void sema_binop(Sema *sema, Expr *expr) {
     if (!tc_equals(sema, *lt, rt)) {
         strb t1 = string_from_type(*lt);
         strb t2 = string_from_type(*rt);
-        elog(sema, expr->cursors_idx, "mismatch types, %s %s %s", t1, binopstr, t2);
+        elog(sema, expr->cursor, "mismatch types, %s %s %s", t1, binopstr, t2);
         strbfree(t1); strbfree(t2);
         expr->type = type_poison();
         return;
@@ -1031,21 +1004,21 @@ void sema_binop(Sema *sema, Expr *expr) {
         if (!tc_can_compare_equality(sema, *lt, *rt)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot compare equality of %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot compare equality of %s and %s", t1, t2);
             strbfree(t1); strbfree(t2);
         }
     } else if (expr->binop.kind == BkLess || expr->binop.kind == BkLessEqual || expr->binop.kind == BkGreater || expr->binop.kind == BkGreaterEqual) {
         if (!tc_can_compare_order(*lt, *rt)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot compare order of %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot compare order of %s and %s", t1, t2);
             strbfree(t1); strbfree(t2);
         }
     } else if (expr->binop.kind == BkPlus || expr->binop.kind == BkMinus || expr->binop.kind == BkMultiply || expr->binop.kind == BkDivide) {
         if (!tc_can_arithmetic(*lt, *rt, false)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot perform arithmetic operations on %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot perform arithmetic operations on %s and %s", t1, t2);
             expr->type = type_poison();
         } else if (is_untyped(*lt) && is_untyped(*rt)) {
             expr->type = *lt;
@@ -1058,7 +1031,7 @@ void sema_binop(Sema *sema, Expr *expr) {
         if (!tc_can_arithmetic(*lt, *rt, true)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot perform modulo on %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot perform modulo on %s and %s", t1, t2);
             expr->type = type_poison();
         } else if (is_untyped(*lt) && is_untyped(*rt)) {
             expr->type = *lt;
@@ -1071,14 +1044,14 @@ void sema_binop(Sema *sema, Expr *expr) {
         if (lt->kind != TkBool && rt->kind != TkBool) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot use logical operations (and | or) on %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot use logical operations (and | or) on %s and %s", t1, t2);
             strbfree(t1); strbfree(t2);
         }
     } else if (expr->binop.kind == BkBitAnd || expr->binop.kind == BkBitOr || expr->binop.kind == BkBitXor || expr->binop.kind == BkLeftShift || expr->binop.kind == BkRightShift) {
         if (!tc_can_bitwise(*lt, *rt)) {
             strb t1 = string_from_type(*lt);
             strb t2 = string_from_type(*rt);
-            elog(sema, expr->cursors_idx, "cannot use bitwise operations on %s and %s", t1, t2);
+            elog(sema, expr->cursor, "cannot use bitwise operations on %s and %s", t1, t2);
             strbfree(t1); strbfree(t2);
             expr->type = type_poison();
         } else {
@@ -1125,7 +1098,7 @@ void sema_expr(Sema *sema, Expr *expr) {
                 return;
             }
 
-            Stmnt stmnt = symtab_find(sema, expr->ident, expr->cursors_idx);
+            Stmnt stmnt = symtab_find(sema, expr->ident, expr->cursor);
             if (stmnt.kind == SkVarDecl) {
                 expr->type = stmnt.vardecl.type;
                 break;
@@ -1134,14 +1107,14 @@ void sema_expr(Sema *sema, Expr *expr) {
                 break;
             } else if (stmnt.kind == SkEnumDecl) {
                 assert(stmnt.enumdecl.name.kind == EkIdent && ".name is still expected to be Ident");
-                expr->type = type_typedef(stmnt.enumdecl.name.ident, TYPEVAR, stmnt.cursors_idx);
+                expr->type = type_typedef(stmnt.enumdecl.name.ident, TYPEVAR, stmnt.cursor);
                 break;
             } else if (stmnt.kind == SkStructDecl) {
                 assert(stmnt.structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
-                expr->type = type_typedef(stmnt.structdecl.name.ident, TYPEVAR, stmnt.cursors_idx);
+                expr->type = type_typedef(stmnt.structdecl.name.ident, TYPEVAR, stmnt.cursor);
                 break;
             } else {
-                elog(sema, expr->cursors_idx, "expected \"%s\" to be a variable", expr->ident);
+                elog(sema, expr->cursor, "expected \"%s\" to be a variable", expr->ident);
                 expr->type = type_poison();
                 break;
             }
@@ -1182,7 +1155,7 @@ void sema_var_decl(Sema *sema, Stmnt *stmnt) {
         if (vardecl->value.type.kind == TkNone) {
             if (vardecl->type.kind == TkNone) {
                 // <name> := {...}; can't do that
-                elog(sema, stmnt->cursors_idx, "missing type for literal");
+                elog(sema, stmnt->cursor, "missing type for literal");
                 return;
             } else {
                 // <name>: <type> = {...};
@@ -1193,7 +1166,7 @@ void sema_var_decl(Sema *sema, Stmnt *stmnt) {
             if (!tc_equals(sema, vardecl->type, &vardecl->value.type)) {
                 strb t1 = string_from_type(vardecl->type);
                 strb t2 = string_from_type(vardecl->value.type);
-                elog(sema, stmnt->cursors_idx, "mismatch types, variable \"%s\" type %s, expression type %s", vardecl->name.ident, t1, t2);
+                elog(sema, stmnt->cursor, "mismatch types, variable \"%s\" type %s, expression type %s", vardecl->name.ident, t1, t2);
                 strbfree(t1); strbfree(t2);
                 return;
             }
@@ -1228,7 +1201,7 @@ void sema_var_reassign(Sema *sema, Stmnt *stmnt) {
     }
 
     if (stmnt->varreassign.name.type.constant) {
-        elog(sema, stmnt->cursors_idx, "cannot mutate constant variable");
+        elog(sema, stmnt->cursor, "cannot mutate constant variable");
         return;
     }
 
@@ -1242,21 +1215,21 @@ void sema_var_reassign(Sema *sema, Stmnt *stmnt) {
         if (!tc_equals(sema, stmnt->varreassign.type, &stmnt->varreassign.value.type)) {
             strb t1 = string_from_type(stmnt->varreassign.type);
             strb t2 = string_from_type(stmnt->varreassign.value.type);
-            elog(sema, stmnt->cursors_idx, "mismatch types, variable type %s, expression type %s", t1, t2);
+            elog(sema, stmnt->cursor, "mismatch types, variable type %s, expression type %s", t1, t2);
             strbfree(t1); strbfree(t2);
         }
         return;
     }
 
     assert(stmnt->varreassign.name.kind == EkIdent);
-    Stmnt decl = symtab_find(sema, stmnt->varreassign.name.ident, stmnt->cursors_idx);
+    Stmnt decl = symtab_find(sema, stmnt->varreassign.name.ident, stmnt->cursor);
     if (decl.kind == SkVarDecl) {
         stmnt->varreassign.type = decl.vardecl.type;
     } else if (decl.kind == SkConstDecl) {
-        elog(sema, stmnt->cursors_idx, "cannot mutate constant variable \"%s\"", stmnt->varreassign.name.ident);
+        elog(sema, stmnt->cursor, "cannot mutate constant variable \"%s\"", stmnt->varreassign.name.ident);
         stmnt->varreassign.type = type_poison();
     } else {
-        elog(sema, stmnt->cursors_idx, "expected \"%s\" to be a variable", stmnt->varreassign.name.ident);
+        elog(sema, stmnt->cursor, "expected \"%s\" to be a variable", stmnt->varreassign.name.ident);
         stmnt->varreassign.type = type_poison();
     }
 
@@ -1267,7 +1240,7 @@ void sema_var_reassign(Sema *sema, Stmnt *stmnt) {
     if (!tc_equals(sema, stmnt->varreassign.type, &stmnt->varreassign.value.type)) {
         strb t1 = string_from_type(stmnt->varreassign.type);
         strb t2 = string_from_type(stmnt->varreassign.value.type);
-        elog(sema, stmnt->cursors_idx, "mismatch types, variable \"%s\" type %s, expression type %s", stmnt->varreassign.name.ident, t1, t2);
+        elog(sema, stmnt->cursor, "mismatch types, variable \"%s\" type %s, expression type %s", stmnt->varreassign.name.ident, t1, t2);
         strbfree(t1); strbfree(t2);
     }
 
@@ -1282,7 +1255,7 @@ void sema_const_decl(Sema *sema, Stmnt *stmnt) {
         if (constdecl->value.type.kind == TkNone) {
             if (constdecl->type.kind == TkNone) {
                 // <name> := {...}; can't do that
-                elog(sema, stmnt->cursors_idx, "missing type for literal");
+                elog(sema, stmnt->cursor, "missing type for literal");
                 return;
             } else {
                 // <name>: <type> = {...};
@@ -1293,7 +1266,7 @@ void sema_const_decl(Sema *sema, Stmnt *stmnt) {
             if (!tc_equals(sema, constdecl->type, &constdecl->value.type)) {
                 strb t1 = string_from_type(constdecl->type);
                 strb t2 = string_from_type(constdecl->value.type);
-                elog(sema, stmnt->cursors_idx, "mismatch types, variable \"%s\" type %s, expression type %s", constdecl->name.ident, t1, t2);
+                elog(sema, stmnt->cursor, "mismatch types, variable \"%s\" type %s, expression type %s", constdecl->name.ident, t1, t2);
                 strbfree(t1); strbfree(t2);
                 return;
             }
@@ -1320,11 +1293,11 @@ void sema_if(Sema *sema, Stmnt *stmnt) {
     }
 
     if (
-        !tc_equals(sema, type_bool(TYPEVAR, 0), &iff->condition.type) &&
+        !tc_equals(sema, type_bool(TYPEVAR, (Cursor){0, 0}), &iff->condition.type) &&
         iff->condition.type.kind != TkOption
     ) {
         strb t = string_from_type(iff->condition.type);
-        elog(sema, stmnt->cursors_idx, "condition must be bool or option, got %s", t);
+        elog(sema, stmnt->cursor, "condition must be bool or option, got %s", t);
         strbfree(t); 
         return;
     }
@@ -1336,8 +1309,8 @@ void sema_if(Sema *sema, Stmnt *stmnt) {
         *captured = stmnt_constdecl((ConstDecl){
             .name = iff->capture.ident,
             .type = subtype,
-            .value = expr_null(type_none(), iff->capture.ident.cursors_idx),
-        }, iff->capture.ident.cursors_idx);
+            .value = expr_null(type_none(), iff->capture.ident.cursor),
+        }, iff->capture.ident.cursor);
         iff->capture.decl = captured;
         iff->capture.kind = CkConstDecl;
     }
@@ -1369,7 +1342,7 @@ void sema_switch(Sema *sema, Stmnt *stmnt) {
         Stmnt *cas = &switchf->cases[i];
 
         if (have_else) {
-            elog(sema, cas->cursors_idx, "cannot have more cases after else case");
+            elog(sema, cas->cursor, "cannot have more cases after else case");
         }
 
         // else case
@@ -1382,7 +1355,7 @@ void sema_switch(Sema *sema, Stmnt *stmnt) {
         if (!tc_equals(sema, switchf->value.type, &cas->casef.value.type)) {
             strb t1 = string_from_type(switchf->value.type);
             strb t2 = string_from_type(cas->casef.value.type);
-            elog(sema, cas->cursors_idx, "expected case condition to be of type %s, got %s", t1, t2);
+            elog(sema, cas->cursor, "expected case condition to be of type %s, got %s", t1, t2);
             strbfree(t1); strbfree(t2);
         }
 
@@ -1414,9 +1387,9 @@ void sema_for(Sema *sema, Stmnt *stmnt) {
         return;
     }
 
-    if (!tc_equals(sema, type_bool(TYPEVAR, 0), &forf->condition.type)) {
+    if (!tc_equals(sema, type_bool(TYPEVAR, (Cursor){0, 0}), &forf->condition.type)) {
         strb t = string_from_type(forf->condition.type);
-        elog(sema,forf->condition.cursors_idx, "condition must be bool, got %s", t);
+        elog(sema,forf->condition.cursor, "condition must be bool, got %s", t);
         strbfree(t); 
         return;
     }
@@ -1431,7 +1404,7 @@ void sema_for(Sema *sema, Stmnt *stmnt) {
             sema_var_reassign(sema, forf->update);
             break;
         default:
-            elog(sema, stmnt->cursors_idx, "unexpected statement in for loop update");
+            elog(sema, stmnt->cursor, "unexpected statement in for loop update");
             break;
     }
 
@@ -1456,7 +1429,7 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
     switch (foreach->iterator.type.kind) {
         case TkRange:
             if (foreach->captures[1].kind != CkNone) {
-                elog(sema, foreach->captures[1].ident.cursors_idx, "cannot capture more than one value from range in for loop");
+                elog(sema, foreach->captures[1].ident.cursor, "cannot capture more than one value from range in for loop");
             }
             if (foreach->captures[0].kind == CkNone) {
                 break;
@@ -1477,7 +1450,7 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
             break;
         default: {}
             strb t = string_from_type(foreach->iterator.type);
-            elog(sema, stmnt->cursors_idx, "cannot iterate over %s, must be an array, slice, or range", t);
+            elog(sema, stmnt->cursor, "cannot iterate over %s, must be an array, slice, or range", t);
             strbfree(t);
 
             if (foreach->captures[0].kind == CkNone) {
@@ -1496,10 +1469,10 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
 
         Stmnt *val = ealloc(sizeof(Stmnt));
         *val = stmnt_constdecl((ConstDecl){
-            .type = i == 0 ? subtype : type_number(TkUsize, TYPEVAR, capture->ident.cursors_idx),
+            .type = i == 0 ? subtype : type_number(TkUsize, TYPEVAR, capture->ident.cursor),
             .name = capture->ident,
             .value = expr_none(),
-        }, capture->ident.cursors_idx);
+        }, capture->ident.cursor);
 
         capture->kind = CkConstDecl;
         capture->decl = val;
@@ -1538,26 +1511,26 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
                 if (sema->envinfo.fn.kind != SkNone) {
                     sema_return(sema, stmnt);
                 } else {
-                    elog(sema, stmnt->cursors_idx, "illegal use of return, not inside a function");
+                    elog(sema, stmnt->cursor, "illegal use of return, not inside a function");
                 }
                 break;
             case SkContinue:
                 if (!sema->envinfo.forl) {
-                    elog(sema, stmnt->cursors_idx, "illegal use of continue, not inside a loop");
+                    elog(sema, stmnt->cursor, "illegal use of continue, not inside a loop");
                 }
                 break;
             case SkBreak:
                 if (!sema->envinfo.forl) {
-                    elog(sema, stmnt->cursors_idx, "illegal use of break, not inside a loop");
+                    elog(sema, stmnt->cursor, "illegal use of break, not inside a loop");
                 }
                 break;
             case SkFall:
                 if (!sema->envinfo.casef) {
-                    elog(sema, stmnt->cursors_idx, "illegal use of fall, not inside case");
+                    elog(sema, stmnt->cursor, "illegal use of fall, not inside case");
                 }
 
                 if (i + 1 != arrlenu(body)) {
-                    elog(sema, stmnt->cursors_idx, "fall must be the last statement in a case block");
+                    elog(sema, stmnt->cursor, "fall must be the last statement in a case block");
                 }
 
                 sema->envinfo.fall = true;
@@ -1587,16 +1560,16 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
                 sema_for_each(sema, stmnt);
                 break;
             case SkCase:
-                elog(sema, stmnt->cursors_idx, "illegal case statement without switch statement");
+                elog(sema, stmnt->cursor, "illegal case statement without switch statement");
                 break;
             case SkFnDecl:
-                elog(sema, stmnt->cursors_idx, "illegal function declaration inside another function");
+                elog(sema, stmnt->cursor, "illegal function declaration inside another function");
                 break;
             case SkStructDecl:
-                elog(sema, stmnt->cursors_idx, "illegal struct declaration inside a function");
+                elog(sema, stmnt->cursor, "illegal struct declaration inside a function");
                 break;
             case SkEnumDecl:
-                elog(sema, stmnt->cursors_idx, "illegal enum declaration inside a function");
+                elog(sema, stmnt->cursor, "illegal enum declaration inside a function");
                 break;
         }
     }
@@ -1605,26 +1578,26 @@ void sema_block(Sema *sema, Arr(Stmnt) body) {
 void sema_main_fn_decl(Sema *sema, Stmnt *stmnt) {
     if (stmnt->fndecl.type.kind != TkVoid) {
         strb t = string_from_type(stmnt->fndecl.type);
-        elog(sema, stmnt->cursors_idx, "illegal main function, expected return type to be void, got %s", t);
+        elog(sema, stmnt->cursor, "illegal main function, expected return type to be void, got %s", t);
         strbfree(t); 
     }
 
     if (arrlenu(stmnt->fndecl.args) >= 2) {
-        elog(sema, stmnt->cursors_idx, "illegal main function, expected no arguments or []string");
+        elog(sema, stmnt->cursor, "illegal main function, expected no arguments or []string");
     }
 
     if (arrlenu(stmnt->fndecl.args) == 1) {
         Stmnt arg = stmnt->fndecl.args[0];
         if (arg.constdecl.type.kind != TkSlice) {
             strb t = string_from_type(arg.constdecl.type);
-            elog(sema, arg.cursors_idx, "illegal main function, expected argument to be []string");
+            elog(sema, arg.cursor, "illegal main function, expected argument to be []string");
             strbfree(t);
             goto leave;
         }
 
         if (arg.constdecl.type.slice.of->kind != TkString) {
             strb t = string_from_type(arg.constdecl.type);
-            elog(sema, arg.cursors_idx, "illegal main function, expected argument to be []string");
+            elog(sema, arg.cursor, "illegal main function, expected argument to be []string");
             strbfree(t);
         }
     }
@@ -1646,12 +1619,12 @@ void sema_fn_decl(Sema *sema, Stmnt *stmnt) {
         assert(arg->kind == SkConstDecl || arg->kind == SkVarDecl);
 
         if (arg->kind == SkConstDecl && must_be_vardecls) {
-            elog(sema, arg->cursors_idx, "positional arguments are not allowed after default arguments.");
+            elog(sema, arg->cursor, "positional arguments are not allowed after default arguments.");
             continue;
         }
 
         if (arg->constdecl.type.kind == TkTypeDef) {
-            Stmnt found = symtab_find(sema, arg->constdecl.type.typedeff, arg->constdecl.type.cursors_idx);
+            Stmnt found = symtab_find(sema, arg->constdecl.type.typedeff, arg->constdecl.type.cursor);
             if (found.kind == SkNone) {
                 continue;
             }
@@ -1703,19 +1676,19 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
             sema_block(sema, stmnt->defer->block);
             break;
         case SkCase:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a case statement");
+            elog(sema, stmnt->externf->cursor, "cannot defer a case statement");
             break;
         case SkReturn:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a return statement");
+            elog(sema, stmnt->externf->cursor, "cannot defer a return statement");
             break;
         case SkContinue:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a continue statement");
+            elog(sema, stmnt->externf->cursor, "cannot defer a continue statement");
             break;
         case SkBreak:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a break statement");
+            elog(sema, stmnt->externf->cursor, "cannot defer a break statement");
             break;
         case SkFall:
-            elog(sema, stmnt->cursors_idx, "cannot defer a fall statement");
+            elog(sema, stmnt->cursor, "cannot defer a fall statement");
             break;
         case SkVarDecl:
         case SkConstDecl:
@@ -1723,13 +1696,13 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
         case SkStructDecl:
         case SkFnDecl:
         case SkExtern:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a declaration");
+            elog(sema, stmnt->externf->cursor, "cannot defer a declaration");
             break;
         case SkDirective:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a directive");
+            elog(sema, stmnt->externf->cursor, "cannot defer a directive");
             break;
         case SkDefer:
-            elog(sema, stmnt->externf->cursors_idx, "cannot defer a defer");
+            elog(sema, stmnt->externf->cursor, "cannot defer a defer");
             break;
     }
 }
@@ -1753,50 +1726,50 @@ void sema_extern(Sema *sema, Stmnt *stmnt) {
             sema_const_decl(sema, stmnt->externf);
             break;
         case SkStructDecl:
-            elog(sema, stmnt->externf->cursors_idx, "illegal struct declaration, cannot be external");
+            elog(sema, stmnt->externf->cursor, "illegal struct declaration, cannot be external");
             break;
         case SkEnumDecl:
-            elog(sema, stmnt->externf->cursors_idx, "illegal enum declaration, cannot be external");
+            elog(sema, stmnt->externf->cursor, "illegal enum declaration, cannot be external");
             break;
         case SkBlock:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of scope block, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of scope block, not inside a function");
             break;
         case SkReturn:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of return, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of return, not inside a function");
             break;
         case SkDefer:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of defer, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of defer, not inside a function");
             break;
         case SkContinue:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of continue, not inside a loop");
+            elog(sema, stmnt->externf->cursor, "illegal use of continue, not inside a loop");
             break;
         case SkBreak:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of break, not inside a loop");
+            elog(sema, stmnt->externf->cursor, "illegal use of break, not inside a loop");
             break;
         case SkFall:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of fall, not inside case");
+            elog(sema, stmnt->externf->cursor, "illegal use of fall, not inside case");
             break;
         case SkFnCall:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of function call, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of function call, not inside a function");
             break;
         case SkIf:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of if statement, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of if statement, not inside a function");
             break;
         case SkSwitch:
-            elog(sema, stmnt->cursors_idx, "illegal use of switch statement, not inside a function");
+            elog(sema, stmnt->cursor, "illegal use of switch statement, not inside a function");
             break;
         case SkCase:
-            elog(sema, stmnt->cursors_idx, "illegal use of case statement, not inside a function");
+            elog(sema, stmnt->cursor, "illegal use of case statement, not inside a function");
             break;
         case SkFor:
         case SkForEach:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of for loop, not inside a function");
+            elog(sema, stmnt->externf->cursor, "illegal use of for loop, not inside a function");
             break;
         case SkExtern:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of extern, already inside extern");
+            elog(sema, stmnt->externf->cursor, "illegal use of extern, already inside extern");
             break;
         case SkDirective:
-            elog(sema, stmnt->externf->cursors_idx, "illegal use of directive, cannot be inside extern");
+            elog(sema, stmnt->externf->cursor, "illegal use of directive, cannot be inside extern");
             break;
     }
 }
@@ -1829,7 +1802,7 @@ void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
 
                 for (size_t j = 0; j < arrlenu(visited); j++) {
                     if (streq(visited[j], name.ident)) {
-                        elog(sema, stmnt->cursors_idx, "cyclic dependency between struct \"%s\" and field \"%s\" of type \"%v\"", stmnt->structdecl.name.ident, f->vardecl.name.ident, name.ident);
+                        elog(sema, stmnt->cursor, "cyclic dependency between struct \"%s\" and field \"%s\" of type \"%s\"", stmnt->structdecl.name.ident, f->vardecl.name.ident, name.ident);
                         break;
                     }
                 }
@@ -1889,7 +1862,7 @@ void sema_struct_decl(Sema *sema, Stmnt *stmnt) {
         switch (structd->fields[i].kind) {
             case SkVarDecl:
                 if (structd->fields[i].vardecl.value.kind != EkNone) {
-                    elog(sema, structd->fields[i].cursors_idx, "cannot have default values in structs, got one for field %s", structd->fields[i].vardecl.name.ident);
+                    elog(sema, structd->fields[i].cursor, "cannot have default values in structs, got one for field %s", structd->fields[i].vardecl.name.ident);
                 }
 
                 uint64_t size = eval_sizeof(sema, structd->fields[i].vardecl.type);
@@ -1902,7 +1875,7 @@ void sema_struct_decl(Sema *sema, Stmnt *stmnt) {
 
                 break;
             case SkConstDecl:
-                elog(sema, structd->fields[i].cursors_idx, "cannot have constant fields, got constant field %s", structd->fields[i].constdecl.name.ident);
+                elog(sema, structd->fields[i].cursor, "cannot have constant fields, got constant field %s", structd->fields[i].constdecl.name.ident);
                 break;
             default:
                 break;
@@ -1939,7 +1912,7 @@ void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
         Stmnt *f = &stmnt->enumdecl.fields[i];
 
         if (f->constdecl.value.kind == EkNone) {
-            f->constdecl.value = expr_intlit(u64_to_string((uint64_t)counter), type_number(TkUntypedInt, TYPECONST, f->cursors_idx), f->cursors_idx);
+            f->constdecl.value = expr_intlit(u64_to_string((uint64_t)counter), type_number(TkUntypedInt, TYPECONST, f->cursor), f->cursor);
             counter++;
         } else {
             f->constdecl.type.kind = TkI32;
@@ -1988,38 +1961,38 @@ void sema_analyse(Sema *sema) {
                 sema_const_decl(sema, stmnt);
                 break;
             case SkBlock:
-                elog(sema, stmnt->cursors_idx, "illegal use of scope block, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of scope block, not inside a function");
                 break;
             case SkReturn:
-                elog(sema, stmnt->cursors_idx, "illegal use of return, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of return, not inside a function");
                 break;
             case SkDefer:
-                elog(sema, stmnt->cursors_idx, "illegal use of defer, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of defer, not inside a function");
                 break;
             case SkContinue:
-                elog(sema, stmnt->cursors_idx, "illegal use of continue, not inside a loop");
+                elog(sema, stmnt->cursor, "illegal use of continue, not inside a loop");
                 break;
             case SkBreak:
-                elog(sema, stmnt->cursors_idx, "illegal use of break, not inside a loop");
+                elog(sema, stmnt->cursor, "illegal use of break, not inside a loop");
                 break;
             case SkFall:
-                elog(sema, stmnt->cursors_idx, "illegal use of fall, not inside case");
+                elog(sema, stmnt->cursor, "illegal use of fall, not inside case");
                 break;
             case SkFnCall:
-                elog(sema, stmnt->cursors_idx, "illegal use of function call, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of function call, not inside a function");
                 break;
             case SkSwitch:
-                elog(sema, stmnt->cursors_idx, "illegal use of switch statement, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of switch statement, not inside a function");
                 break;
             case SkCase:
-                elog(sema, stmnt->cursors_idx, "illegal use of case statement, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of case statement, not inside a function");
                 break;
             case SkIf:
-                elog(sema, stmnt->cursors_idx, "illegal use of if statement, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of if statement, not inside a function");
                 break;
             case SkFor:
             case SkForEach:
-                elog(sema, stmnt->cursors_idx, "illegal use of for loop, not inside a function");
+                elog(sema, stmnt->cursor, "illegal use of for loop, not inside a function");
                 break;
         }
     }

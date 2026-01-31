@@ -4,6 +4,7 @@
 #include "include/typecheck.h"
 #include "include/eval.h"
 #include "include/exprs.h"
+#include "include/lexer.h"
 #include "include/sema.h"
 #include "include/stmnts.h"
 #include "include/strb.h"
@@ -29,8 +30,8 @@ static const uint64_t U16_MAX = UINT16_MAX;
 static const uint64_t U32_MAX = UINT32_MAX;
 // static const uint64_t U64_MAX = UINT64_MAX;
 
-static void elog(Sema *sema, size_t i, const char *msg, ...) {
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, sema->cursors[i].row, sema->cursors[i].col);
+static void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
+    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
 
     va_list args;
     va_start(args, msg);
@@ -97,13 +98,13 @@ bool tc_array_equals(Sema *sema, Type lhs, Type *rhs) {
         if (lhs.array.len->kind != EkNone) {
             uint64_t l_len = eval_expr(sema, lhs.array.len);
 
-            if (rhs->array.len->kind == EkNone) elog(sema, rhs->cursors_idx, "cannot infer array length");
+            if (rhs->array.len->kind == EkNone) elog(sema, rhs->cursor, "cannot infer array length");
             uint64_t r_len = eval_expr(sema, rhs->array.len);
 
             if (l_len != r_len) return false;
             return tc_equals(sema, *lhs.array.of, rhs->array.of);
         } else {
-            if (rhs->array.len->kind == EkNone) elog(sema, rhs->cursors_idx, "cannot infer array length");
+            if (rhs->array.len->kind == EkNone) elog(sema, rhs->cursor, "cannot infer array length");
             *lhs.array.len = *rhs->array.len;
             return tc_equals(sema, *lhs.array.of, rhs->array.of);
         }
@@ -145,12 +146,12 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkTypeId:
             return rhs->kind == TkTypeId;
         case TkTypeDef:
-            symtab_find(sema, lhs.typedeff, lhs.cursors_idx);
+            symtab_find(sema, lhs.typedeff, lhs.cursor);
             return rhs->kind == TkTypeDef && streq(lhs.typedeff, rhs->typedeff);
         case TkOption:
             if (rhs->kind == TkOption) {
                 if (lhs.option.subtype->kind == TkVoid) {
-                    elog(sema, lhs.cursors_idx, "cannot use ?void. maybe use bool instead?");
+                    elog(sema, lhs.cursor, "cannot use ?void. maybe use bool instead?");
                 }
 
                 if (rhs->option.is_null) {
@@ -165,7 +166,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
                     .subtype = subtype,
                     .is_null = false,
                     .gen_option = true,
-                }, TYPEVAR, 0);
+                }, TYPEVAR, (Cursor){0, 0});
                 return true;
             }
             return false;
@@ -393,7 +394,7 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
 
         strb t1 = string_from_type(fndecl.type);
         strb t2 = string_from_type(ret->type);
-        elog(sema, stmnt->cursors_idx, "mismatch types, %s vs %s", t1, t2);
+        elog(sema, stmnt->cursor, "mismatch types, %s vs %s", t1, t2);
         strbfree(t1); strbfree(t2);
         return;
     }
@@ -401,7 +402,7 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
     if (!tc_equals(sema, ret->type, &ret->value.type)) {
         strb t1 = string_from_type(ret->type);
         strb t2 = string_from_type(ret->value.type);
-        elog(sema, stmnt->cursors_idx, "mismatch types, expected return type %s, got %s", t1, t2);
+        elog(sema, stmnt->cursor, "mismatch types, expected return type %s, got %s", t1, t2);
         strbfree(t1); strbfree(t2);
         return;
     }
@@ -409,7 +410,7 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
     if (!tc_equals(sema, fndecl.type, &ret->type)) {
         strb t1 = string_from_type(fndecl.type);
         strb t2 = string_from_type(ret->type);
-        elog(sema, stmnt->cursors_idx, "mismatch types, funciton type %s, got %s", t1, t2);
+        elog(sema, stmnt->cursor, "mismatch types, funciton type %s, got %s", t1, t2);
         strbfree(t1); strbfree(t2);
         return;
     }
@@ -418,13 +419,13 @@ void tc_return(Sema *sema, Stmnt *stmnt) {
 // returns TkNone if no default
 Type tc_default_untyped_type(Type type) {
     if (type.kind == TkUntypedInt) {
-        return type_number(TkI64, TYPEVAR, type.cursors_idx);
+        return type_number(TkI64, TYPEVAR, type.cursor);
     } else if (type.kind == TkUntypedUint) {
-        return type_number(TkU64, TYPEVAR, type.cursors_idx);
+        return type_number(TkU64, TYPEVAR, type.cursor);
     } else if (type.kind == TkUntypedFloat) {
-        return type_number(TkF64, TYPEVAR, type.cursors_idx);
+        return type_number(TkF64, TYPEVAR, type.cursor);
     } else if (type.kind == TkUntypedString) {
-        return type_string(TkString, TYPEVAR, type.cursors_idx);
+        return type_string(TkString, TYPEVAR, type.cursor);
     }
 
     return type_none();
@@ -435,7 +436,7 @@ void tc_infer(Sema *sema, Type *lhs, Expr *expr) {
     Type default_type = tc_default_untyped_type(*exprtype);
 
     if (exprtype->kind == TkTypeDef) {
-        symtab_find(sema, exprtype->typedeff, expr->cursors_idx);
+        symtab_find(sema, exprtype->typedeff, expr->cursor);
     }
 
     if (default_type.kind != TkNone) {
@@ -453,7 +454,7 @@ void tc_var_decl(Sema *sema, Stmnt *stmnt) {
         // <ident>: <type>;
         if (vardecl->type.kind == TkVoid) {
             // <ident>: void; error
-            elog(sema, stmnt->cursors_idx, "variable cannot be of type void");
+            elog(sema, stmnt->cursor, "variable cannot be of type void");
         }
     } else if (vardecl->type.kind == TkNone) {
         tc_infer(sema, &vardecl->type, &vardecl->value);
@@ -466,14 +467,14 @@ void tc_var_decl(Sema *sema, Stmnt *stmnt) {
         if (!tc_equals(sema, vardecl->type, exprtype)) {
             strb t1 = string_from_type(vardecl->type);
             strb t2 = string_from_type(*exprtype);
-            elog(sema, stmnt->cursors_idx, "mismatch types, variable \"%s\" type %s, expression type %s", vardecl->name.ident, t1, t2);
+            elog(sema, stmnt->cursor, "mismatch types, variable \"%s\" type %s, expression type %s", vardecl->name.ident, t1, t2);
             strbfree(t1); strbfree(t2);
             return;
         }
     }
 
     if (vardecl->type.kind == TkArray && vardecl->type.array.len->kind == EkNone) {
-        elog(sema, stmnt->cursors_idx, "cannot infer array length for \"%s\" without compound literal", vardecl->name.ident);
+        elog(sema, stmnt->cursor, "cannot infer array length for \"%s\" without compound literal", vardecl->name.ident);
     }
 
     tc_number_within_bounds(sema, vardecl->type, vardecl->value);
@@ -547,7 +548,7 @@ void tc_const_decl(Sema *sema, Stmnt *stmnt) {
     } else if (!tc_equals(sema, constdecl->type, valtype)) {
         strb t1 = string_from_type(constdecl->type);
         strb t2 = string_from_type(*valtype);
-        elog(sema, stmnt->cursors_idx, "mismatch types, variable \"%s\" type %s, expression type %s", constdecl->name.ident, t1, t2);
+        elog(sema, stmnt->cursor, "mismatch types, variable \"%s\" type %s, expression type %s", constdecl->name.ident, t1, t2);
         strbfree(t1); strbfree(t2);
     }
 
@@ -575,7 +576,7 @@ void tc_number_within_bounds(Sema *sema, Type type, Expr expr) {
             double value = 0.0;
             assert(parse_f64(lit, &value));
             if (value > F32_MAX || value < F32_MIN) {
-                elog(sema, expr.cursors_idx, "literal \"%f\" cannot be represented in f32", value);
+                elog(sema, expr.cursor, "literal \"%f\" cannot be represented in f32", value);
             }
         } break;
         case TkF64: {
@@ -585,21 +586,21 @@ void tc_number_within_bounds(Sema *sema, Type type, Expr expr) {
             uint64_t value = 0;
             assert(parse_u64(lit, &value));
             if (is_signed || value > U8_MAX) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u8", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in u8", is_signed ? "-" : "", value);
             }
         } break;
         case TkU16: {
             uint64_t value = 0;
             assert(parse_u64(lit, &value));
             if (is_signed || value > U16_MAX) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u16", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in u16", is_signed ? "-" : "", value);
             }
         } break;
         case TkU32: {
             uint64_t value = 0;
             assert(parse_u64(lit, &value));
             if (is_signed || value > U32_MAX) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in u32", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in u32", is_signed ? "-" : "", value);
             }
         } break;
         case TkU64:
@@ -612,21 +613,21 @@ void tc_number_within_bounds(Sema *sema, Type type, Expr expr) {
             int64_t value = 0;
             assert(parse_i64(lit, &value));
             if (value > I8_MAX || value < I8_MIN) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i8", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in i8", is_signed ? "-" : "", value);
             }
         } break;
         case TkI16: {
             int64_t value = 0;
             assert(parse_i64(lit, &value));
             if (value > I16_MAX || value < I16_MIN) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i16", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in i16", is_signed ? "-" : "", value);
             }
         } break;
         case TkI32: {
             int64_t value = 0;
             assert(parse_i64(lit, &value));
             if (value > I32_MAX || value < I32_MIN) {
-                elog(sema, expr.cursors_idx, "literal \"%s%zu\" cannot be represented in i32", is_signed ? "-" : "", value);
+                elog(sema, expr.cursor, "literal \"%s%zu\" cannot be represented in i32", is_signed ? "-" : "", value);
             }
         } break;
         case TkI64:
@@ -665,7 +666,7 @@ bool tc_is_unsigned(Sema *sema, Expr expr) {
             return false;
         default: {
             strb t = string_from_type(*type);
-            elog(sema, expr.cursors_idx, "expected an integer type, got %s", t);
+            elog(sema, expr.cursor, "expected an integer type, got %s", t);
             strbfree(t);
             return false;
         }
@@ -812,8 +813,8 @@ bool tc_can_compare_equality(Sema *sema, Type lhs, Type rhs) {
                 return false;
             }
 
-            Stmnt lhs_stmnt = symtab_find(sema, lhs.typedeff, lhs.cursors_idx);
-            Stmnt rhs_stmnt = symtab_find(sema, rhs.typedeff, rhs.cursors_idx);
+            Stmnt lhs_stmnt = symtab_find(sema, lhs.typedeff, lhs.cursor);
+            Stmnt rhs_stmnt = symtab_find(sema, rhs.typedeff, rhs.cursor);
             if (!(lhs_stmnt.kind == SkEnumDecl && rhs_stmnt.kind == SkEnumDecl)) {
                 return false;
             }

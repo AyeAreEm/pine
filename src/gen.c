@@ -34,7 +34,7 @@ void mastrfree(MaybeAllocStr s) {
     if (s.alloced) strbfree(s.str);
 }
 
-Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename, Arr(Cursor) cursors) {
+Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename) {
     return (Gen){
         .ast = ast,
         .code = NULL,
@@ -55,7 +55,6 @@ Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename, Arr(Cursor) cu
             .optimisation = OlDebug,
             .output = "",
         },
-        .cursors = cursors,
         .filename = filename,
     };
 }
@@ -78,42 +77,43 @@ void gen_pop_defers(Gen *gen) {
 
 void gen_directive(Gen *gen, Stmnt stmnt) {
     assert(stmnt.kind == SkDirective);
-    switch (stmnt.directive.kind) {
-        case DkLink:
-            arrpush(gen->compile_flags.links, stmnt.directive.str);
-            break;
-        case DkSyslink: {
-            strb l = NULL;
-            strbprintf(&l, "-l%s", stmnt.directive.str);
-            arrpush(gen->compile_flags.links, l);
-        } break;
-        case DkOutput:
-            gen->compile_flags.output = stmnt.directive.str;
-            break;
-        case DkO0:
-            gen->compile_flags.optimisation = OlZero;
-            break;
-        case DkO1:
-            gen->compile_flags.optimisation = OlOne;
-            break;
-        case DkO2:
-            gen->compile_flags.optimisation = OlTwo;
-            break;
-        case DkO3:
-            gen->compile_flags.optimisation = OlThree;
-            break;
-        case DkOdebug:
-            gen->compile_flags.optimisation = OlDebug;
-            break;
-        case DkOfast:
-            gen->compile_flags.optimisation = OlFast;
-            break;
-        case DkOsmall:
-            gen->compile_flags.optimisation = OlSmall;
-            break;
-        default:
-            break;
-    }
+    (void)gen;
+    // switch (stmnt.directive.kind) {
+    //     case DkLink:
+    //         arrpush(gen->compile_flags.links, stmnt.directive.str);
+    //         break;
+    //     case DkSyslink: {
+    //         strb l = NULL;
+    //         strbprintf(&l, "-l%s", stmnt.directive.str);
+    //         arrpush(gen->compile_flags.links, l);
+    //     } break;
+    //     case DkOutput:
+    //         gen->compile_flags.output = stmnt.directive.str;
+    //         break;
+    //     case DkO0:
+    //         gen->compile_flags.optimisation = OlZero;
+    //         break;
+    //     case DkO1:
+    //         gen->compile_flags.optimisation = OlOne;
+    //         break;
+    //     case DkO2:
+    //         gen->compile_flags.optimisation = OlTwo;
+    //         break;
+    //     case DkO3:
+    //         gen->compile_flags.optimisation = OlThree;
+    //         break;
+    //     case DkOdebug:
+    //         gen->compile_flags.optimisation = OlDebug;
+    //         break;
+    //     case DkOfast:
+    //         gen->compile_flags.optimisation = OlFast;
+    //         break;
+    //     case DkOsmall:
+    //         gen->compile_flags.optimisation = OlSmall;
+    //         break;
+    //     default:
+    //         break;
+    // }
 }
 
 void gen_write(Gen *gen, const char *fmt, ...) {
@@ -812,10 +812,10 @@ MaybeAllocStr _gen_expr(Gen *gen, Expr expr, bool for_identifier) {
             }
 
             if (type.kind == TkSlice) {
-                strbprintf(&ret, "pinesliceat(\"%s\", \"%lu\", %s%s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, ptr ? "*" : "", access.str, index.str);
+                strbprintf(&ret, "pinesliceat(\"%s\", \"%lu\", %s%s, %s)", gen->filename, expr.cursor.row, ptr ? "*" : "", access.str, index.str);
             } else {
                 MaybeAllocStr len = gen_expr(gen, *type.array.len);
-                strbprintf(&ret, "pinearrat(\"%s\", \"%lu\", %s%s, %s, %s)", gen->filename, gen->cursors[expr.cursors_idx].row, ptr ? "*" : "", access.str, index.str, len.str);
+                strbprintf(&ret, "pinearrat(\"%s\", \"%lu\", %s%s, %s, %s)", gen->filename, expr.cursor.row, ptr ? "*" : "", access.str, index.str, len.str);
                 mastrfree(len);
             }
 
@@ -1110,7 +1110,7 @@ void gen_var_decl(Gen *gen, Stmnt stmnt) {
                     .exprs = NULL,
                 },
                 vardecl.type,
-                stmnt.cursors_idx
+                stmnt.cursor
             ));
             gen_writeln(gen, "%s;", value.str);
 
@@ -1204,7 +1204,7 @@ void gen_break(Gen *gen, Stmnt stmnt) {
 
 void gen_fn_call_stmnt(Gen *gen, Stmnt stmnt) {
     assert(stmnt.kind == SkFnCall);
-    Expr expr = expr_fncall(stmnt.fncall, type_none(), stmnt.cursors_idx);
+    Expr expr = expr_fncall(stmnt.fncall, type_none(), stmnt.cursor);
 
     MaybeAllocStr call = gen_fn_call(gen, expr);
     gen_indent(gen);
@@ -1305,7 +1305,7 @@ void gen_for(Gen *gen, Stmnt stmnt) {
 
     switch (forf.update->kind) {
         case SkFnCall: {
-            Expr expr = expr_fncall(stmnt.fncall, type_none(), stmnt.cursors_idx);
+            Expr expr = expr_fncall(stmnt.fncall, type_none(), stmnt.cursor);
 
             MaybeAllocStr call = gen_fn_call(gen, expr);
             gen_write(gen, "%s", call.str);
@@ -1599,7 +1599,7 @@ void gen_fn_decl(Gen *gen, Stmnt stmnt, bool is_extern) {
         gen_write(gen, "%s ", code);
         gen_block(gen, fndecl.body);
     } else if (!is_extern) {
-        gen_writeln(gen, "%v;", code);
+        gen_writeln(gen, "%s;", code);
     }
 }
 

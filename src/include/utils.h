@@ -91,4 +91,7 @@ void *ealloc(size_t size);
 void *erealloc(void *mem, size_t size);
 
 const char *get_c_compiler(void);
+
+// returns false if failed
+bool get_cwd(char* buf, size_t size);
 #endif // UTILS_H

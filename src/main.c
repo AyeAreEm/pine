@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "include/compiler.h"
 #include "include/exprs.h"
 #include "include/lexer.h"
 #include "include/stmnts.h"
@@ -14,6 +15,38 @@
 
 #define STB_DS_IMPLEMENTATION
 #include "include/stb_ds.h"
+
+Arr(Stmnt) import(const char *filename) {
+    char *content = {0};
+    bool content_ok = read_entire_file(filename, &content);
+    if (!content_ok) {
+        comp_elog("failed to read %s", filename);
+    }
+
+    Lexer lex = lexer(content);
+
+    // NOTE: lexer will make a copy of all strings so freeing content should be fine
+    free(content);
+
+    Arr(Stmnt) ast = NULL;
+    Parser parser = parser_init(lex, filename);
+    for (Stmnt stmnt = parser_parse(&parser); stmnt.kind != SkNone; stmnt = parser_parse(&parser)) {
+        arrpush(ast, stmnt);
+    }
+
+    if (parser.error_count > 0) {
+        exit(1);
+    }
+
+    Sema sema = sema_init(ast, filename);
+    sema_analyse(&sema);
+
+    if (sema.error_count > 0) {
+        exit(1);
+    }
+
+    return ast;
+}
 
 void compile(CompileFlags flags) {
     const char *cc = get_c_compiler();
@@ -76,7 +109,6 @@ const char *build(Cli cli) {
     }
 
     Lexer lex = lexer(content);
-    if (arrlen(lex.tokens) != arrlen(lex.cursors)) comp_elog("expected length of tokens and length of cursors to be the same");
 
     Arr(Stmnt) ast = NULL;
     Parser parser = parser_init(lex, cli.filename);
@@ -88,14 +120,14 @@ const char *build(Cli cli) {
         exit(1);
     }
 
-    Sema sema = sema_init(ast, cli.filename, lex.cursors);
+    Sema sema = sema_init(ast, cli.filename);
     sema_analyse(&sema);
 
     if (sema.error_count > 0) {
         exit(1);
     }
 
-    Gen gen = gen_init(ast, sema.dgraph, cli.filename, lex.cursors);
+    Gen gen = gen_init(ast, sema.dgraph, cli.filename);
     gen_generate(&gen);
     gen.compile_flags.keepc = cli.keepc;
 

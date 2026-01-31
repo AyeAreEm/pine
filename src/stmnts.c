@@ -1,9 +1,4 @@
-#include <stdio.h>
-#include <assert.h>
 #include "include/stmnts.h"
-#include "include/exprs.h"
-#include "include/lexer.h"
-#include "include/stb_ds.h"
 
 Stmnt stmnt_none(void) {
     return (Stmnt){
@@ -11,159 +6,159 @@ Stmnt stmnt_none(void) {
     };
 }
 
-Stmnt stmnt_fndecl(FnDecl v, size_t index) {
+Stmnt stmnt_fndecl(FnDecl v, Cursor cursor) {
     return (Stmnt){
         .kind = SkFnDecl,
-        .cursors_idx = index,
+        .cursor = cursor,
         .fndecl = v,
     };
 }
 
-Stmnt stmnt_structdecl(StructDecl v, size_t index) {
+Stmnt stmnt_structdecl(StructDecl v, Cursor cursor) {
     return (Stmnt){
         .kind = SkStructDecl,
-        .cursors_idx = index,
+        .cursor = cursor,
         .structdecl = v,
     };
 }
 
-Stmnt stmnt_enumdecl(EnumDecl v, size_t index) {
+Stmnt stmnt_enumdecl(EnumDecl v, Cursor cursor) {
     return (Stmnt){
         .kind = SkEnumDecl,
-        .cursors_idx = index,
+        .cursor = cursor,
         .enumdecl = v,
     };
 }
 
-Stmnt stmnt_vardecl(VarDecl v, size_t index) {
+Stmnt stmnt_vardecl(VarDecl v, Cursor cursor) {
     return (Stmnt){
         .kind = SkVarDecl,
-        .cursors_idx = index,
+        .cursor = cursor,
         .vardecl = v,
     };
 }
 
-Stmnt stmnt_varreassign(VarReassign v, size_t index) {
+Stmnt stmnt_varreassign(VarReassign v, Cursor cursor) {
     return (Stmnt){
         .kind = SkVarReassign,
-        .cursors_idx = index,
+        .cursor = cursor,
         .varreassign = v,
     };
 }
 
-Stmnt stmnt_constdecl(ConstDecl v, size_t index) {
+Stmnt stmnt_constdecl(ConstDecl v, Cursor cursor) {
     return (Stmnt){
         .kind = SkConstDecl,
-        .cursors_idx = index,
+        .cursor = cursor,
         .constdecl = v,
     };
 }
 
-Stmnt stmnt_return(Return v, size_t index) {
+Stmnt stmnt_return(Return v, Cursor cursor) {
     return (Stmnt){
         .kind = SkReturn,
-        .cursors_idx = index,
+        .cursor = cursor,
         .returnf = v,
     };
 }
 
-Stmnt stmnt_defer(Stmnt *v, size_t index) {
+Stmnt stmnt_defer(Stmnt *v, Cursor cursor) {
     return (Stmnt){
         .kind = SkDefer,
         .defer = v,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Stmnt stmnt_continue(size_t index) {
+Stmnt stmnt_continue(Cursor cursor) {
     return (Stmnt){
         .kind = SkContinue,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Stmnt stmnt_break(size_t index) {
+Stmnt stmnt_break(Cursor cursor) {
     return (Stmnt){
         .kind = SkBreak,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Stmnt stmnt_fall(size_t index) {
+Stmnt stmnt_fall(Cursor cursor) {
     return (Stmnt){
         .kind = SkFall,
-        .cursors_idx = index,
+        .cursor = cursor,
     };
 }
 
-Stmnt stmnt_fncall(FnCall v, size_t index) {
+Stmnt stmnt_fncall(FnCall v, Cursor cursor) {
     return (Stmnt){
         .kind = SkFnCall,
-        .cursors_idx = index,
+        .cursor = cursor,
         .fncall = v,
     };
 }
 
-Stmnt stmnt_if(If v, size_t index) {
+Stmnt stmnt_if(If v, Cursor cursor) {
     return (Stmnt){
         .kind = SkIf,
-        .cursors_idx = index,
+        .cursor = cursor,
         .iff = v,
     };
 }
 
-Stmnt stmnt_switch(Switch v, size_t index) {
+Stmnt stmnt_switch(Switch v, Cursor cursor) {
     return (Stmnt) {
         .kind = SkSwitch,
-        .cursors_idx = index,
+        .cursor = cursor,
         .switchf = v,
     };
 }
 
-Stmnt stmnt_case(Case v, size_t index) {
+Stmnt stmnt_case(Case v, Cursor cursor) {
     return (Stmnt){
         .kind = SkCase,
-        .cursors_idx = index,
+        .cursor = cursor,
         .casef = v,
     };
 }
 
-Stmnt stmnt_for(For v, size_t index) {
+Stmnt stmnt_for(For v, Cursor cursor) {
     return (Stmnt){
         .kind = SkFor,
-        .cursors_idx = index,
+        .cursor = cursor,
         .forf = v,
     };
 }
 
-Stmnt stmnt_foreach(ForEach v, size_t index) {
+Stmnt stmnt_foreach(ForEach v, Cursor cursor) {
     return (Stmnt){
         .kind = SkForEach,
-        .cursors_idx = index,
+        .cursor = cursor,
         .foreach = v,
     };
 }
 
-Stmnt stmnt_block(Arr(Stmnt) v, size_t index) {
+Stmnt stmnt_block(Arr(Stmnt) v, Cursor cursor) {
     return (Stmnt){
         .kind = SkBlock,
-        .cursors_idx = index,
+        .cursor = cursor,
         .block = v,
     };
 }
 
-Stmnt stmnt_extern(Stmnt *v, size_t index) {
+Stmnt stmnt_extern(Stmnt *v, Cursor cursor) {
     return (Stmnt){
         .kind = SkExtern,
-        .cursors_idx = index,
+        .cursor = cursor,
         .externf = v,
     };
 }
 
-Stmnt stmnt_directive(Directive v, size_t index) {
+Stmnt stmnt_directive(Directive v, Cursor cursor) {
     return (Stmnt){
         .kind = SkDirective,
-        .cursors_idx = index,
+        .cursor = cursor,
         .directive = v,
     };
 }

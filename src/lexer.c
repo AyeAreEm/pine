@@ -9,23 +9,26 @@
 Token token_none(void) {
     return (Token){.kind = TokNone};
 }
-Token token_ident(const char *s) {
-    return (Token){.kind = TokIdent, .string = s};
+static Token token_ident(const char *s, Cursor cursor) {
+    return (Token){.kind = TokIdent, .string = s, .cursor = cursor};
 }
-Token token_intlit(const char *s) {
-    return (Token){.kind = TokIntLit, .string = s};
+static Token token_intlit(const char *s, Cursor cursor) {
+    return (Token){.kind = TokIntLit, .string = s, .cursor = cursor};
 }
-Token token_floatlit(const char *s) {
-    return (Token){.kind = TokFloatLit, .string = s};
+static Token token_floatlit(const char *s, Cursor cursor) {
+    return (Token){.kind = TokFloatLit, .string = s, .cursor = cursor};
 }
-Token token_charlit(const char *s) {
-    return (Token){.kind = TokCharLit, .string = s};
+static Token token_charlit(const char *s, Cursor cursor) {
+    return (Token){.kind = TokCharLit, .string = s, .cursor = cursor};
 }
-Token token_strlit(const char *s) {
-    return (Token){.kind = TokStrLit, .string = s};
+static Token token_strlit(const char *s, Cursor cursor) {
+    return (Token){.kind = TokStrLit, .string = s, .cursor = cursor};
 }
-Token token_directive(const char *s) {
-    return (Token){.kind = TokDirective, .string = s};
+static Token token_directive(const char *s, Cursor cursor) {
+    return (Token){.kind = TokDirective, .string = s, .cursor = cursor};
+}
+static Token token_symbol(TokenKind kind, Cursor cursor) {
+    return (Token){.kind = kind, .cursor = cursor};
 }
 
 const char *tokenkind_stringify(TokenKind kind) {
@@ -156,7 +159,6 @@ static void reset_buffer(Lexer *lex) {
 
 static void resolve_buffer(Lexer *lex) {
     if (strlen(lex->buf) > 0) {
-        arrpush(lex->cursors, lex->cursor);
 
         Token tok;
         uint64_t u64 = 0;
@@ -165,14 +167,14 @@ static void resolve_buffer(Lexer *lex) {
         if (streq(lex->buf, "_")) {
             tok = (Token){ .kind = TokUnderscore };
         } else if (parse_u64(lex->buf, &u64)) {
-            tok = token_intlit(strdup(lex->buf));
+            tok = token_intlit(strdup(lex->buf), lex->cursor);
         }  else if (parse_f64(lex->buf, &f64)) {
-            tok = token_floatlit(strdup(lex->buf));
+            tok = token_floatlit(strdup(lex->buf), lex->cursor);
         } else if (lex->is_directive) {
-            tok = token_directive(strdup(lex->buf));
+            tok = token_directive(strdup(lex->buf), lex->cursor);
             lex->is_directive = false;
         } else {
-            tok = token_ident(strdup(lex->buf));
+            tok = token_ident(strdup(lex->buf), lex->cursor);
         }
         arrpush(lex->tokens, tok);
     }
@@ -182,7 +184,6 @@ static void resolve_buffer(Lexer *lex) {
 
 static void push_token(Lexer *lex, Token tok) {
     lex->cursor.col += 1;
-    arrpush(lex->cursors, lex->cursor);
     arrpush(lex->tokens, tok);
 }
 
@@ -228,7 +229,6 @@ static void resolve_buffer_push_token(Lexer *lex, Token tok) {
 Lexer lexer_init(void) {
     Lexer lex = {
         .tokens = NULL,
-        .cursors = NULL,
 
         .ch = 0,
         .buf = {0},
@@ -309,8 +309,7 @@ Lexer lexer(const char *source) {
             case '\'':
                 if (lex.in_quotes) {
                     lex.in_quotes = false;
-                    arrpush(lex.cursors, lex.cursor);
-                    arrpush(lex.tokens, token_charlit(strdup(lex.buf)));
+                    arrpush(lex.tokens, token_charlit(strdup(lex.buf), lex.cursor));
                     reset_buffer(&lex);
                 } else {
                     resolve_buffer(&lex);
@@ -321,8 +320,7 @@ Lexer lexer(const char *source) {
             case '"':
                 if (lex.in_double_quotes) {
                     lex.in_double_quotes = false;
-                    arrpush(lex.cursors, lex.cursor);
-                    arrpush(lex.tokens, token_strlit(strdup(lex.buf)));
+                    arrpush(lex.tokens, token_strlit(strdup(lex.buf), lex.cursor));
                     reset_buffer(&lex);
                 } else {
                     resolve_buffer(&lex);
@@ -334,62 +332,62 @@ Lexer lexer(const char *source) {
                 uint64_t u64 = 0;
                 if (AT(source, strlen(source), i + 1) == '.') {
                     lex.ignore_index = i + 1;
-                    resolve_buffer_push_token(&lex, (Token){.kind = TokDot});
+                    resolve_buffer_push_token(&lex, token_symbol(TokDot, lex.cursor));
                     move_cursor(&lex);
-                    push_token(&lex, (Token){.kind = TokDot});
+                    push_token(&lex, token_symbol(TokDot, lex.cursor));
                 } else if (parse_u64(lex.buf, &u64)) {
                     push_buffer(&lex);
                 } else {
-                    resolve_buffer_push_token(&lex, (Token){.kind = TokDot});
+                    resolve_buffer_push_token(&lex, token_symbol(TokDot, lex.cursor));
                 }
             } break;
             case '?':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokQuestion});
+                resolve_buffer_push_token(&lex, token_symbol(TokQuestion, lex.cursor));
                 break;
             case ':':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokColon});
+                resolve_buffer_push_token(&lex, token_symbol(TokColon, lex.cursor));
                 break;
             case '(':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokLeftBracket});
+                resolve_buffer_push_token(&lex, token_symbol(TokLeftBracket, lex.cursor));
                 break;
             case ')':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokRightBracket});
+                resolve_buffer_push_token(&lex, token_symbol(TokRightBracket, lex.cursor));
                 break;
             case '{':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokLeftCurl});
+                resolve_buffer_push_token(&lex, token_symbol(TokLeftCurl, lex.cursor));
                 break;
             case '}':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokRightCurl});
+                resolve_buffer_push_token(&lex, token_symbol(TokRightCurl, lex.cursor));
                 break;
             case '<':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokLeftAngle});
+                resolve_buffer_push_token(&lex, token_symbol(TokLeftAngle, lex.cursor));
                 break;
             case '>':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokRightAngle});
+                resolve_buffer_push_token(&lex, token_symbol(TokRightAngle, lex.cursor));
                 break;
             case '[':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokLeftSquare});
+                resolve_buffer_push_token(&lex, token_symbol(TokLeftSquare, lex.cursor));
                 break;
             case ']':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokRightSquare});
+                resolve_buffer_push_token(&lex, token_symbol(TokRightSquare, lex.cursor));
                 break;
             case '=':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokEqual});
+                resolve_buffer_push_token(&lex, token_symbol(TokEqual, lex.cursor));
                 break;
             case '!':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokExclaim});
+                resolve_buffer_push_token(&lex, token_symbol(TokExclaim, lex.cursor));
                 break;
             case ';':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokSemiColon});
+                resolve_buffer_push_token(&lex, token_symbol(TokSemiColon, lex.cursor));
                 break;
             case ',':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokComma});
+                resolve_buffer_push_token(&lex, token_symbol(TokComma, lex.cursor));
                 break;
             case '+':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokPlus});
+                resolve_buffer_push_token(&lex, token_symbol(TokPlus, lex.cursor));
                 break;
             case '-':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokMinus});
+                resolve_buffer_push_token(&lex, token_symbol(TokMinus, lex.cursor));
                 break;
             case '*':
                 if (AT(source, strlen(source), i + 1) == '/') {
@@ -397,20 +395,20 @@ Lexer lexer(const char *source) {
                     lex.in_block_comment = false;
                     move_cursor(&lex);
                 } else {
-                    resolve_buffer_push_token(&lex, (Token){.kind = TokStar});
+                    resolve_buffer_push_token(&lex, token_symbol(TokStar, lex.cursor));
                 }
                 break;
             case '^':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokCaret});
+                resolve_buffer_push_token(&lex, token_symbol(TokCaret, lex.cursor));
                 break;
             case '|':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokBar});
+                resolve_buffer_push_token(&lex, token_symbol(TokBar, lex.cursor));
                 break;
             case '&':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokAmpersand});
+                resolve_buffer_push_token(&lex, token_symbol(TokAmpersand, lex.cursor));
                 break;
             case '~':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokTilde});
+                resolve_buffer_push_token(&lex, token_symbol(TokTilde, lex.cursor));
                 break;
             case '/': {
                 char next = AT(source, strlen(source), i + 1);
@@ -422,18 +420,18 @@ Lexer lexer(const char *source) {
                     lex.ignore_index = i + 1;
                     lex.in_block_comment = true;
                 } else {
-                    resolve_buffer_push_token(&lex, (Token){.kind = TokSlash});
+                    resolve_buffer_push_token(&lex, token_symbol(TokSlash, lex.cursor));
                 }
             } break;
             case '%':
-                resolve_buffer_push_token(&lex, (Token){.kind = TokPercent});
+                resolve_buffer_push_token(&lex, token_symbol(TokPercent, lex.cursor));
                 break;
             case '\\':
                 if (lex.in_double_quotes || lex.in_quotes) {
                     lex.escaped = true;
                     push_buffer(&lex);
                 } else {
-                    resolve_buffer_push_token(&lex, (Token){.kind = TokBackSlash});
+                    resolve_buffer_push_token(&lex, token_symbol(TokBackSlash, lex.cursor));
                 }
                 break;
             default:

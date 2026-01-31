@@ -27,9 +27,9 @@
 //     va_end(args);
 // }
 
-static void elog(Parser *parser, size_t i, const char *msg, ...) {
+static void elog(Parser *parser, Cursor cursor, const char *msg, ...) {
     parser->error_count++;
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", parser->filename, parser->cursors[i].row, parser->cursors[i].col);
+    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", parser->filename, cursor.row, cursor.col);
 
     va_list args;
     va_start(args, msg);
@@ -46,9 +46,9 @@ static void elog(Parser *parser, size_t i, const char *msg, ...) {
 Expr expr_from_keyword(Parser *parser, Keyword kw) {
     switch (kw) {
         case KwTrue:
-            return expr_true((size_t)parser->cursors_idx);
+            return expr_true(parser->cursor);
         case KwFalse:
-            return expr_false((size_t)parser->cursors_idx);
+            return expr_false(parser->cursor);
         case KwNull: {
             Type *subtype = ealloc(sizeof(Type)); subtype->kind = TkNone;
             return expr_null(
@@ -59,47 +59,34 @@ Expr expr_from_keyword(Parser *parser, Keyword kw) {
                         .subtype = subtype,
                     },
                     TYPECONST,
-                    (size_t)parser->cursors_idx
+                    parser->cursor
                 ),
-                (size_t)parser->cursors_idx
+                parser->cursor
             );
         }
         default:
-            elog(parser, parser->cursors_idx, "expected an expression, got keyword %s", keyword_stringify(kw));
+            elog(parser, parser->cursor, "expected an expression, got keyword %s", keyword_stringify(kw));
             return expr_none();
     }
 }
 
 static Directive directive_map(const char *str) {
-    if (streq(str, "link")) {
-        return (Directive){ .kind = DkLink };
-    } else if (streq(str, "syslink")) {
-        return (Directive){ .kind = DkSyslink };
-    } else if (streq(str, "output")) {
-        return (Directive){ .kind = DkOutput };
-    } else if (streq(str, "O0")) {
-        return (Directive){ .kind = DkO0 };
-    } else if (streq(str, "O1")) {
-        return (Directive){ .kind = DkO1 };
-    } else if (streq(str, "O2")) {
-        return (Directive){ .kind = DkO2 };
-    } else if (streq(str, "O3")) {
-        return (Directive){ .kind = DkO3 };
-    } else if (streq(str, "Odebug")) {
-        return (Directive){ .kind = DkOdebug };
-    } else if (streq(str, "Ofast")) {
-        return (Directive){ .kind = DkOfast };
-    } else if (streq(str, "Osmall")) {
-        return (Directive){ .kind = DkOsmall };
+    if (streq(str, "import")) {
+        return (Directive){.kind = DkImport};
     }
 
-    return (Directive){ .kind = DkNone };
+    return (Directive){.kind = DkNone};
 }
 
 Directive parser_get_directive(Parser *parser, const char *word) {
     Directive d = directive_map(word);
-    if (d.kind == DkNone) {
-        elog(parser, parser->cursors_idx, "\"#%s\" is not a directive", word);
+
+    switch (d.kind) {
+        case DkImport:
+            break;
+        case DkNone:
+            elog(parser, parser->cursor, "\"#%s\" is not a directive", word);
+            break;
     }
     return d;
 }
@@ -107,12 +94,11 @@ Directive parser_get_directive(Parser *parser, const char *word) {
 Parser parser_init(Lexer lex, const char *filename) {
     return (Parser){
         .tokens = lex.tokens,
+        .cursor = lex.tokens[0].cursor,
         .in_func_decl_args = false,
         .in_enum_decl = false,
 
         .filename = filename,
-        .cursors = lex.cursors,
-        .cursors_idx = -1,
         .error_count = 0,
     };
 }
@@ -138,8 +124,8 @@ Token next(Parser *parser) {
         return token_none();
     }
 
-    parser->cursors_idx += 1;
     Token tok = parser->tokens[0];
+    parser->cursor = tok.cursor;
     arrdel(parser->tokens, 0);
     return tok;
 }
@@ -147,11 +133,11 @@ Token next(Parser *parser) {
 Token expect(Parser *parser, TokenKind expected) {
     Token tok = next(parser);
     if (tok.kind == TokNone) {
-        elog(parser, parser->cursors_idx, "expected token %s when no more tokens left", tokenkind_stringify(expected));
+        elog(parser, parser->cursor, "expected token %s when no more tokens left", tokenkind_stringify(expected));
     }
 
     if (tok.kind != expected) {
-        elog(parser, parser->cursors_idx, "expected token %s, got %s", tokenkind_stringify(expected), tokenkind_stringify(tok.kind));
+        elog(parser, parser->cursor, "expected token %s, got %s", tokenkind_stringify(expected), tokenkind_stringify(tok.kind));
     }
 
     return tok;
@@ -187,7 +173,7 @@ static Identifiers convert_ident(Parser *parser, Token tok) {
     if (tok.kind != TokIdent) {
         return (Identifiers){
             .kind = IkIdent,
-            .expr = expr_ident("", type_none(), parser->cursors_idx),
+            .expr = expr_ident("", type_none(), parser->cursor),
         };
     }
 
@@ -209,7 +195,7 @@ static Identifiers convert_ident(Parser *parser, Token tok) {
 
     return (Identifiers){
         .kind = IkIdent,
-        .expr = expr_ident(tok.string, type_none(), (size_t)parser->cursors_idx),
+        .expr = expr_ident(tok.string, type_none(), parser->cursor),
     };
 }
 
@@ -243,13 +229,13 @@ Stmnt parse_var_reassign(Parser *parser, Expr ident, bool expect_semicolon) {
         .type = type_none(),
         .name = ident,
         .value = expr,
-    }, (size_t)parser->cursors_idx);
+    }, parser->cursor);
 }
 
 Expr parse_end_literal(Parser *parser, Type type) {
     Expr lit = expr_literal((Literal){
         .kind = LitkNone,
-    }, type, (size_t)parser->cursors_idx);
+    }, type, parser->cursor);
 
     bool is_stmnts = false;
     Arr(Expr) exprs = NULL;
@@ -270,7 +256,7 @@ Expr parse_end_literal(Parser *parser, Type type) {
                     Stmnt stmnt = parse_var_reassign(parser, convert.expr, false);
                     arrpush(stmnts, stmnt);
                 } else {
-                    elog(parser, parser->cursors_idx, "expected identifer in compound literal, got %s", identifierskind_stringify(convert.kind));
+                    elog(parser, parser->cursor, "expected identifer in compound literal, got %s", identifierskind_stringify(convert.kind));
                     Stmnt stmnt = stmnt_none();
                     arrpush(stmnts, stmnt);
                 }
@@ -296,7 +282,7 @@ Expr parse_end_literal(Parser *parser, Type type) {
                 Stmnt stmnt = parse_var_reassign(parser, convert.expr, false);
                 arrpush(stmnts, stmnt);
             } else {
-                elog(parser, parser->cursors_idx, "expected identifer in compound literal, got %s", identifierskind_stringify(convert.kind));
+                elog(parser, parser->cursor, "expected identifer in compound literal, got %s", identifierskind_stringify(convert.kind));
                 Stmnt stmnt = stmnt_none();
                 arrpush(stmnts, stmnt);
             }
@@ -321,7 +307,7 @@ Expr parse_end_literal(Parser *parser, Type type) {
 Type typedef_from_ident(Expr ident) {
     assert(ident.kind == EkIdent);
     
-    return type_typedef(ident.ident, TYPEVAR, ident.cursors_idx);
+    return type_typedef(ident.ident, TYPEVAR, ident.cursor);
 }
 
 Type parse_type(Parser *parser) {
@@ -330,7 +316,7 @@ Type parse_type(Parser *parser) {
 
     switch (tok.kind) {
         case TokQuestion: {
-            size_t index = (size_t)parser->cursors_idx;
+            Cursor cursor = parser->cursor;
 
             next(parser);
             Type *subtype = ealloc(sizeof(Type)); *subtype = parse_type(parser);
@@ -339,7 +325,7 @@ Type parse_type(Parser *parser) {
                 .subtype = subtype,
                 .is_null = false,
                 .gen_option = false,
-            }, TYPEVAR, index);
+            }, TYPEVAR, cursor);
         } break;
         case TokStar:
         case TokCaret: {
@@ -348,7 +334,7 @@ Type parse_type(Parser *parser) {
             type = type_ptr(
                 of,
                 TYPECONST ? tok.kind == TokCaret : TYPEVAR,
-                (size_t)parser->cursors_idx
+                parser->cursor
             );
             next(parser);
             Type *subtype = ealloc(sizeof(Type)); *subtype = parse_type(parser);
@@ -363,7 +349,7 @@ Type parse_type(Parser *parser) {
                 next(parser);
                 type = type_slice((Slice){
                     .of = of,
-                }, TYPEVAR, (size_t)parser->cursors_idx);
+                }, TYPEVAR, parser->cursor);
             } else {
                 Expr *len = ealloc(sizeof(Expr)); 
                 if (after.kind == TokIntLit) {
@@ -374,14 +360,14 @@ Type parse_type(Parser *parser) {
                     expect(parser, TokRightSquare);
                     len->kind = EkNone;
                 } else {
-                    elog(parser, (size_t)parser->cursors_idx, "expected an integer, underscore, or empty []");
+                    elog(parser, parser->cursor, "expected an integer, underscore, or empty []");
                     len->kind = EkNone;
                 }
 
                 type = type_array((Array){
                     .len = len,
                     .of = of,
-                }, TYPEVAR, (size_t)parser->cursors_idx);
+                }, TYPEVAR, parser->cursor);
             }
 
             Type *subtype = ealloc(sizeof(Type)); *subtype = parse_type(parser);
@@ -398,7 +384,7 @@ Type parse_type(Parser *parser) {
             if (convert.kind == IkType) {
                 type = convert.type;
             } else if (convert.kind == IkKeyword) {
-                elog(parser, parser->cursors_idx, "expected a type, got %s", tokenkind_stringify(tok.kind));
+                elog(parser, parser->cursor, "expected a type, got %s", tokenkind_stringify(tok.kind));
                 type = type_none();
             } else {
                 type = typedef_from_ident(convert.expr);
@@ -426,7 +412,7 @@ Expr parse_primary(Parser *parser) {
                 return parse_end_literal(parser, type);
             } else {
                 strb t = string_from_type(type);
-                elog(parser, parser->cursors_idx, "unexpected type %s", t);
+                elog(parser, parser->cursor, "unexpected type %s", t);
                 strbfree(t);
                 return expr_none();
             }
@@ -466,10 +452,10 @@ Expr parse_primary(Parser *parser) {
                     next(parser);
                     return parse_end_literal(parser, type);
                 } else {
-                    return expr_type(type, (size_t)parser->cursors_idx);
+                    return expr_type(type, parser->cursor);
                 }
             } else {
-                elog(parser, parser->cursors_idx, "unexpected identifier %s", tok.string);
+                elog(parser, parser->cursor, "unexpected identifier %s", tok.string);
                 return expr_none();
             }
         } break;
@@ -480,9 +466,9 @@ Expr parse_primary(Parser *parser) {
                 type_number(
                     TkUntypedInt,
                     TYPECONST,
-                    (size_t)parser->cursors_idx
+                    parser->cursor
                 ),
-                (size_t)parser->cursors_idx
+                parser->cursor
             );
         case TokFloatLit:
             next(parser);
@@ -491,27 +477,27 @@ Expr parse_primary(Parser *parser) {
                 type_number(
                     TkUntypedFloat,
                     TYPECONST,
-                    (size_t)parser->cursors_idx
+                    parser->cursor
                 ),
-                (size_t)parser->cursors_idx
+                parser->cursor
             );
             return expr;
         case TokCharLit:
             next(parser);
-            return expr_charlit(tok.string, (size_t)parser->cursors_idx);
+            return expr_charlit(tok.string, parser->cursor);
         case TokStrLit:
             next(parser);
-            return expr_strlit(tok.string, (size_t)parser->cursors_idx);
+            return expr_strlit(tok.string, parser->cursor);
         case TokLeftBracket: {
             next(parser);
-            size_t index = (size_t)parser->cursors_idx;
+            Cursor cursor = parser->cursor;
             Expr *expr = ealloc(sizeof(Expr)); *expr = parse_expr(parser);
             expect(parser, TokRightBracket);
 
-            return expr_group(expr, type_none(), index);
+            return expr_group(expr, type_none(), cursor);
         } break;
         default:
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
             return expr_none();
     }
 
@@ -519,7 +505,7 @@ Expr parse_primary(Parser *parser) {
 }
 
 Expr parse_end_fn_call(Parser *parser, Expr ident) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     bool is_stmnts = false;
     Arr(Expr) exprs = NULL;
@@ -537,7 +523,7 @@ Expr parse_end_fn_call(Parser *parser, Expr ident) {
                 Stmnt stmnt = parse_var_reassign(parser, convert.expr, false);
                 arrpush(stmnts, stmnt);
             } else {
-                elog(parser, parser->cursors_idx, "expected identifer in function call, got %s", identifierskind_stringify(convert.kind));
+                elog(parser, parser->cursor, "expected identifer in function call, got %s", identifierskind_stringify(convert.kind));
                 Stmnt stmnt = stmnt_none();
                 arrpush(stmnts, stmnt);
             }
@@ -557,7 +543,7 @@ Expr parse_end_fn_call(Parser *parser, Expr ident) {
                     Stmnt stmnt = parse_var_reassign(parser, convert.expr, false);
                     arrpush(stmnts, stmnt);
                 } else {
-                    elog(parser, parser->cursors_idx, "expected identifer in function call, got %s", identifierskind_stringify(convert.kind));
+                    elog(parser, parser->cursor, "expected identifer in function call, got %s", identifierskind_stringify(convert.kind));
                     Stmnt stmnt = stmnt_none();
                     arrpush(stmnts, stmnt);
                 }
@@ -579,7 +565,7 @@ Expr parse_end_fn_call(Parser *parser, Expr ident) {
         fncall.arg_kind = LitkExprs;
         fncall.args.exprs = exprs;
     }
-    return expr_fncall(fncall, type_none(), index);
+    return expr_fncall(fncall, type_none(), cursor);
 }
 
 Expr parse_fn_call(Parser *parser, Expr ident) {
@@ -603,17 +589,17 @@ Expr parse_fn_call(Parser *parser, Expr ident) {
 
 Stmnt stmnt_from_fncall(Expr expr) {
     assert(expr.kind == EkFnCall);
-    return stmnt_fncall(expr.fncall, expr.cursors_idx);
+    return stmnt_fncall(expr.fncall, expr.cursor);
 }
 
 Expr expr_from_fncall(Stmnt stmnt) {
     assert(stmnt.kind == SkFnCall);
-    return expr_fncall(stmnt.fncall, type_none(), stmnt.cursors_idx);
+    return expr_fncall(stmnt.fncall, type_none(), stmnt.cursor);
 }
 
 Expr parse_unary(Parser *parser) {
     Token op = peek(parser);
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     if (
         op.kind != TokExclaim &&
@@ -640,7 +626,7 @@ resume:
         return expr_unop((Unop){
             .kind = UkCast,
             .val = right,
-        }, type, index);
+        }, type, cursor);
     }
 
     Expr *right = ealloc(sizeof(Expr)); *right = parse_unary(parser);
@@ -649,37 +635,37 @@ resume:
             return expr_unop((Unop){
                 .kind = UkNot,
                 .val = right,
-            }, type_bool(TYPEVAR, index), index);
+            }, type_bool(TYPEVAR, cursor), cursor);
         case TokMinus:
             return expr_unop((Unop){
                 .kind = UkNegate,
                 .val = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         case TokTilde:
             return expr_unop((Unop){
                 .kind = UkBitNot,
                 .val = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         case TokAmpersand:
             return expr_unop((Unop){
                 .kind = UkAddress,
                 .val = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         case TokIdent:
             if (streq(op.string, "sizeof")) {
                 if (right->kind != EkGrouping) {
-                    elog(parser, right->cursors_idx, "expected () after `sizeof`");
+                    elog(parser, right->cursor, "expected () after `sizeof`");
                     return expr_none();
                 }
 
                 return expr_unop((Unop){
                     .kind = UkSizeof,
                     .val = right->group,
-                }, type_number(TkUntypedInt, TYPECONST, index), index);
+                }, type_number(TkUntypedInt, TYPECONST, cursor), cursor);
             }
             return expr_none();
         default:
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(op.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(op.kind));
             return expr_none();
     }
 
@@ -695,7 +681,7 @@ Expr parse_factor(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_unary(parser);
 
@@ -704,19 +690,19 @@ Expr parse_factor(Parser *parser) {
                 .kind = BkMultiply,
                 .left = left,
                 .right = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         } else if (op.kind == TokSlash) {
             expr = expr_binop((Binop){
                 .kind = BkDivide,
                 .left = left,
                 .right = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         } else {
             expr = expr_binop((Binop){
                 .kind = BkMod,
                 .left = left,
                 .right = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         }
     }
 
@@ -732,7 +718,7 @@ Expr parse_term(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_factor(parser);
 
@@ -741,13 +727,13 @@ Expr parse_term(Parser *parser) {
                 .kind = BkPlus,
                 .left = left,
                 .right = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         } else {
             expr = expr_binop((Binop){
                 .kind = BkMinus,
                 .left = left,
                 .right = right,
-            }, type_none(), index);
+            }, type_none(), cursor);
         }
     }
 
@@ -758,7 +744,7 @@ Expr parse_shift(Parser *parser) {
     Expr expr = parse_term(parser);
 
     for (Token tok = peek(parser); tok.kind != TokNone; tok = peek(parser)) {
-        size_t index = parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Token after = peek_after(parser);
         
         if (tok.kind != TokLeftAngle && tok.kind != TokRightAngle) {
@@ -778,13 +764,13 @@ Expr parse_shift(Parser *parser) {
                 .kind = BkLeftShift,
                 .left = left,
                 .right = right,
-            }, type_number(TkUntypedInt, TYPEVAR, index), index);
+            }, type_number(TkUntypedInt, TYPEVAR, cursor), cursor);
         } else {
             expr = expr_binop((Binop){
                 .kind = BkRightShift,
                 .left = left,
                 .right = right,
-            }, type_number(TkUntypedInt, TYPEVAR, index), index);
+            }, type_number(TkUntypedInt, TYPEVAR, cursor), cursor);
         }
     }
 
@@ -795,7 +781,7 @@ Expr parse_comparison(Parser *parser) {
     Expr expr = parse_shift(parser);
 
     for (Token tok = peek(parser); tok.kind != TokNone; tok = peek(parser)) {
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         if (tok.kind != TokLeftAngle && tok.kind != TokRightAngle) {
             break;
         }
@@ -813,13 +799,13 @@ Expr parse_comparison(Parser *parser) {
                     .kind = BkLessEqual,
                     .left = left,
                     .right = right,
-                }, type_bool(TYPEVAR, index), index);
+                }, type_bool(TYPEVAR, cursor), cursor);
             } else {
                 expr = expr_binop((Binop){
                     .kind = BkGreaterEqual,
                     .left = left,
                     .right = right,
-                }, type_bool(TYPEVAR, index), index);
+                }, type_bool(TYPEVAR, cursor), cursor);
             }
         } else {
             if (tok.kind == TokLeftAngle) {
@@ -827,13 +813,13 @@ Expr parse_comparison(Parser *parser) {
                     .kind = BkLess,
                     .left = left,
                     .right = right,
-                }, type_bool(TYPEVAR, index), index);
+                }, type_bool(TYPEVAR, cursor), cursor);
             } else {
                 expr = expr_binop((Binop){
                     .kind = BkGreater,
                     .left = left,
                     .right = right,
-                }, type_bool(TYPEVAR, index), index);
+                }, type_bool(TYPEVAR, cursor), cursor);
             }
         }
     }
@@ -845,7 +831,7 @@ Expr parse_equality(Parser *parser) {
     Expr expr = parse_comparison(parser);
 
     for (Token tok = peek(parser); tok.kind != TokNone; tok = peek(parser)) {
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         if (tok.kind != TokExclaim && tok.kind != TokEqual) {
             break;
         }
@@ -863,13 +849,13 @@ Expr parse_equality(Parser *parser) {
                 .kind = BkInequals,
                 .left = left,
                 .right = right,
-            }, type_bool(TYPEVAR, index), index);
+            }, type_bool(TYPEVAR, cursor), cursor);
         } else {
             expr = expr_binop((Binop){
                 .kind = BkEquals,
                 .left = left,
                 .right = right,
-            }, type_bool(TYPEVAR, index), index);
+            }, type_bool(TYPEVAR, cursor), cursor);
         }
     }
 
@@ -885,14 +871,14 @@ Expr parse_bitwise_and(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_equality(parser);
         expr = expr_binop((Binop){
             .kind = BkBitAnd,
             .left = left,
             .right = right,
-        }, type_number(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, cursor), cursor);
     }
 
     return expr;
@@ -907,14 +893,14 @@ Expr parse_bitwise_xor(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_bitwise_and(parser);
         expr = expr_binop((Binop){
             .kind = BkBitXor,
             .left = left,
             .right = right,
-        }, type_number(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, cursor), cursor);
     }
 
     return expr;
@@ -929,14 +915,14 @@ Expr parse_bitwise_or(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_bitwise_xor(parser);
         expr = expr_binop((Binop){
             .kind = BkBitOr,
             .left = left,
             .right = right,
-        }, type_number(TkUntypedInt, TYPEVAR, index), index);
+        }, type_number(TkUntypedInt, TYPEVAR, cursor), cursor);
     }
 
     return expr;
@@ -955,14 +941,14 @@ Expr parse_and(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_bitwise_or(parser);
         expr = expr_binop((Binop){
             .kind = BkAnd,
             .left = left,
             .right = right,
-        }, type_bool(TYPEVAR, index), index);
+        }, type_bool(TYPEVAR, cursor), cursor);
     }
 
     return expr;
@@ -981,14 +967,14 @@ Expr parse_or(Parser *parser) {
         }
         next(parser);
 
-        size_t index = (size_t)parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Expr *left = ealloc(sizeof(Expr)); *left = expr;
         Expr *right = ealloc(sizeof(Expr)); *right = parse_equality(parser);
         expr = expr_binop((Binop){
             .kind = BkOr,
             .left = left,
             .right = right,
-        }, type_bool(TYPEVAR, index), index);
+        }, type_bool(TYPEVAR, cursor), cursor);
     }
 
     return expr;
@@ -1003,7 +989,7 @@ Expr parse_range(Parser *parser) {
     }
 
     for (Token tok = peek(parser); tok.kind != TokNone; tok = peek(parser)) {
-        size_t index = parser->cursors_idx;
+        Cursor cursor = parser->cursor;
         Token after = peek_after(parser);
 
         if (tok.kind != TokDot) {
@@ -1044,14 +1030,14 @@ Expr parse_range(Parser *parser) {
             }
         }
 
-        Type *subtype = ealloc(sizeof(Type)); *subtype = type_number(TkUntypedInt, TYPECONST, index);
+        Type *subtype = ealloc(sizeof(Type)); *subtype = type_number(TkUntypedInt, TYPECONST, cursor);
         expr = expr_range((RangeLit){
             .start = left,
             .end = right,
             .inclusive = inclusive,
         }, type_range((Range){
             .subtype = subtype,
-        }, TYPECONST, index), index);
+        }, TYPECONST, cursor), cursor);
     }
 
     return expr;
@@ -1066,7 +1052,7 @@ Expr parse_array_slice(Parser *parser, Expr expr, Expr *range) {
     Expr arrslice = expr_arrayslice((ArraySlice){
         .accessing = e,
         .slice = range,
-    }, type_none(), (size_t)parser->cursors_idx);
+    }, type_none(), parser->cursor);
     return arrslice;
 }
 
@@ -1084,7 +1070,7 @@ Expr parse_array_index(Parser *parser, Expr expr) {
     Expr arrindex = expr_arrayindex((ArrayIndex){
         .accessing = e,
         .index = index,
-    }, type_none(), (size_t)parser->cursors_idx);
+    }, type_none(), parser->cursor);
 
     Token tok = peek(parser);
     if (tok.kind == TokDot) {
@@ -1101,7 +1087,7 @@ Expr parse_array_index(Parser *parser, Expr expr) {
 // expects '.' already nexted
 // <expr>.
 Expr parse_field_access(Parser *parser, Expr expr) {
-    size_t index = parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     Expr *front = ealloc(sizeof(Expr)); *front = expr;
     Expr *field = ealloc(sizeof(Expr)); *field = expr_none();
@@ -1110,7 +1096,7 @@ Expr parse_field_access(Parser *parser, Expr expr) {
         .accessing = front,
         .field = field,
         .deref = false,
-    }, type_none(), index);
+    }, type_none(), cursor);
 
     Token tok = next(parser);
     if (tok.kind == TokAmpersand) {
@@ -1120,7 +1106,7 @@ Expr parse_field_access(Parser *parser, Expr expr) {
         // <expr>.<ident>
         Identifiers convert = convert_ident(parser, tok);
         if (convert.kind != IkIdent) {
-            elog(parser, parser->cursors_idx, "unexpected token %s after field access", tokenkind_stringify(tok.kind));
+            elog(parser, parser->cursor, "unexpected token %s after field access", tokenkind_stringify(tok.kind));
             *field = expr_none();
             fa.type = type_none();
         } else {
@@ -1131,7 +1117,7 @@ Expr parse_field_access(Parser *parser, Expr expr) {
 
     tok = peek(parser);
     if (tok.kind == TokNone) {
-        elog(parser, parser->cursors_idx, "expected more tokens");
+        elog(parser, parser->cursor, "expected more tokens");
     } else if (tok.kind == TokDot) {
         next(parser); // already checked if none
         return parse_field_access(parser, fa);
@@ -1145,11 +1131,11 @@ Expr parse_field_access(Parser *parser, Expr expr) {
 
 // <expr> [+-*/%|&~<<>>]=
 Stmnt parse_compound_assignment(Parser *parser, Expr expr, Token op, bool expect_semicolon) {
-    size_t op_idx = (size_t)parser->cursors_idx;
+    Cursor op_idx = parser->cursor;
     Expr *var = ealloc(sizeof(Expr)); *var = expr;
     Expr *val = ealloc(sizeof(Expr)); *val = parse_expr(parser);
     Expr *group = ealloc(sizeof(Expr));
-    *group = expr_group(val, type_none(), parser->cursors_idx);
+    *group = expr_group(val, type_none(), parser->cursor);
 
     if (expect_semicolon) expect(parser, TokSemiColon);
 
@@ -1157,7 +1143,7 @@ Stmnt parse_compound_assignment(Parser *parser, Expr expr, Token op, bool expect
         .name = expr,
         .type = type_none(),
         .value = expr_none(),
-    }, parser->cursors_idx);
+    }, parser->cursor);
 
     Expr binop = expr_binop((Binop){
         .kind = 0,
@@ -1229,13 +1215,13 @@ Stmnt parse_possible_assignment(Parser *parser, Expr expr, bool expect_semicolon
         if ((tok.kind == TokLeftAngle && after.kind == TokLeftAngle) || (tok.kind == TokRightAngle && after.kind == TokRightAngle)) {
             Token final = next(parser);
             if (final.kind != TokEqual) {
-                elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(final.kind));
+                elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(final.kind));
                 return parse_next_stmnt(parser);
             }
 
             return parse_compound_assignment(parser, expr, tok, expect_semicolon);
         } else if (after.kind != TokEqual) {
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(after.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(after.kind));
             return parse_next_stmnt(parser);
         }
 
@@ -1284,7 +1270,7 @@ Arr(Stmnt) parse_block_curls(Parser *parser) {
 }
 
 Stmnt parse_fn_decl(Parser *parser, Expr ident) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     parser->in_func_decl_args = true;
     Stmnt *args = parse_block(parser, TokLeftBracket, TokRightBracket);
@@ -1292,7 +1278,7 @@ Stmnt parse_fn_decl(Parser *parser, Expr ident) {
 
     Type type = parse_type(parser);
     if (type.kind == TkNone) {
-        elog(parser, parser->cursors_idx, "expected return type in function declaration");
+        elog(parser, parser->cursor, "expected return type in function declaration");
         return parse_next_stmnt(parser);
     }
 
@@ -1308,31 +1294,31 @@ Stmnt parse_fn_decl(Parser *parser, Expr ident) {
         fndecl.body = body;
         fndecl.has_body = true;
 
-        return stmnt_fndecl(fndecl, index);
+        return stmnt_fndecl(fndecl, cursor);
     } else if (tok.kind == TokSemiColon) {
         next(parser);
         fndecl.body = NULL;
         fndecl.has_body = false;
 
-        return stmnt_fndecl(fndecl, index);
+        return stmnt_fndecl(fndecl, cursor);
     } else {
-        elog(parser, parser->cursors_idx, "expected ';' or '{', got %s", tokenkind_stringify(tok.kind));
+        elog(parser, parser->cursor, "expected ';' or '{', got %s", tokenkind_stringify(tok.kind));
         return parse_next_stmnt(parser);
     }
 }
 
 Stmnt parse_struct_decl(Parser *parser, Expr ident) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     Stmnt *fields = parse_block_curls(parser);
 
     return stmnt_structdecl((StructDecl){
         .name = ident,
         .fields = fields,
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_enum_decl(Parser *parser, Expr ident) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     parser->in_enum_decl = true;
     Stmnt *fields = parse_block_curls(parser);
     parser->in_enum_decl = false;
@@ -1340,7 +1326,7 @@ Stmnt parse_enum_decl(Parser *parser, Expr ident) {
     return stmnt_enumdecl((EnumDecl){
         .name = ident,
         .fields = fields,
-    }, index);
+    }, cursor);
 }
 
 // <ident> : <type?> :
@@ -1349,7 +1335,7 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
     Token tok = peek(parser);
     if (tok.kind == TokNone) return stmnt_none();
 
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     if (tok.kind == TokIdent) {
         Identifiers convert = convert_ident(parser, tok);
         if (convert.kind == IkKeyword) {
@@ -1368,7 +1354,7 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
                 case KwNull:
                     break;
                 default:
-                    elog(parser, index, "unexpected token %s", tokenkind_stringify(tok.kind));
+                    elog(parser, cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
                     return parse_next_stmnt(parser);
             }
         }
@@ -1380,7 +1366,7 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
             .name = ident,
             .type = type,
             .value = expr_none(),
-        }, index);
+        }, cursor);
     }
 
     Expr expr = parse_expr(parser);
@@ -1388,7 +1374,7 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
 
     // <ident>: <type?> : ;
     if (expr.kind == EkNone) {
-        elog(parser, index, "expected expression after \":\" in variable declaration");
+        elog(parser, cursor, "expected expression after \":\" in variable declaration");
         return parse_next_stmnt(parser);
     }
 
@@ -1396,11 +1382,11 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
         .name = ident,
         .type = type,
         .value = expr,
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_var_decl(Parser *parser, Expr ident, Type type, bool has_equal) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     VarDecl vardecl = {
         .name = ident,
@@ -1410,7 +1396,7 @@ Stmnt parse_var_decl(Parser *parser, Expr ident, Type type, bool has_equal) {
 
     // <ident>: <type?> = 
     if (!has_equal) {
-        return stmnt_vardecl(vardecl, index);
+        return stmnt_vardecl(vardecl, cursor);
     }
 
     Expr expr = parse_expr(parser);
@@ -1420,17 +1406,17 @@ Stmnt parse_var_decl(Parser *parser, Expr ident, Type type, bool has_equal) {
         }
 
         vardecl.value = expr;
-        return stmnt_vardecl(vardecl, index);
+        return stmnt_vardecl(vardecl, cursor);
     }
     
     expect(parser, TokSemiColon);
     if (expr.kind == EkNone) {
-        elog(parser, index, "expected expression after \"=\" in variable declaration");
+        elog(parser, cursor, "expected expression after \"=\" in variable declaration");
         return parse_next_stmnt(parser);
     }
 
     vardecl.value = expr;
-    return stmnt_vardecl(vardecl, index);
+    return stmnt_vardecl(vardecl, cursor);
 }
 
 // <ident> :
@@ -1447,7 +1433,7 @@ Stmnt parse_decl(Parser *parser, Expr ident) {
     } else {
         Type type = parse_type(parser);
         if (type.kind == TkNone) {
-            elog(parser, parser->cursors_idx, "expected a type");
+            elog(parser, parser->cursor, "expected a type");
             return parse_next_stmnt(parser);
         }
 
@@ -1463,25 +1449,25 @@ Stmnt parse_decl(Parser *parser, Expr ident) {
         } else if (tok.kind == TokSemiColon) {
             next(parser);
             if (type.kind == TkNone) {
-                elog(parser, parser->cursors_idx, "expected type for variable declaration since it does not have a value");
+                elog(parser, parser->cursor, "expected type for variable declaration since it does not have a value");
                 return parse_next_stmnt(parser);
             }
             return parse_var_decl(parser, ident, type, false);
         } else if (tok.kind == TokComma) {
             next(parser);
             if (!parser->in_func_decl_args) {
-                elog(parser, parser->cursors_idx, "unexpected comma during declaration");
+                elog(parser, parser->cursor, "unexpected comma during declaration");
                 return parse_next_stmnt(parser);
             }
             return parse_const_decl(parser, ident, type);
         } else if (tok.kind == TokRightBracket) {
             if (!parser->in_func_decl_args) {
-                elog(parser, parser->cursors_idx, "unexpected TokenRb during declaration");
+                elog(parser, parser->cursor, "unexpected TokenRb during declaration");
                 return parse_next_stmnt(parser);
             }
             return parse_const_decl(parser, ident, type);
         } else {
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
             return parse_next_stmnt(parser);
         }
     }
@@ -1529,17 +1515,17 @@ Stmnt parse_ident(Parser *parser, Expr ident) {
         }
         case TokSemiColon:
             if (!parser->in_enum_decl) {
-                elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
+                elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
                 return parse_next_stmnt(parser);
             }
 
             next(parser);
             return stmnt_constdecl((ConstDecl){
                 .name = ident,
-                .type = type_number(TkI32, TYPECONST, parser->cursors_idx),
-            }, parser->cursors_idx);
+                .type = type_number(TkI32, TYPECONST, parser->cursor),
+            }, parser->cursor);
         default:
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
             return parse_next_stmnt(parser);
     }
 
@@ -1547,14 +1533,14 @@ Stmnt parse_ident(Parser *parser, Expr ident) {
 }
 
 Stmnt parse_return(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     Token tok = peek(parser);
     if (tok.kind == TokSemiColon) {
         next(parser);
         return stmnt_return((Return){
             .value = expr_none(),
             .type = type_none(),
-        }, index);
+        }, cursor);
     }
 
     Expr expr = parse_expr(parser);
@@ -1563,41 +1549,41 @@ Stmnt parse_return(Parser *parser) {
     return stmnt_return((Return){
         .value = expr,
         .type = type_none(),
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_defer(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     Stmnt *defered = ealloc(sizeof(Stmnt));
     *defered = parser_parse(parser);
 
-    return stmnt_defer(defered, index);
+    return stmnt_defer(defered, cursor);
 }
 
 Stmnt parse_continue(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     expect(parser, TokSemiColon);
 
-    return stmnt_continue(index);
+    return stmnt_continue(cursor);
 }
 
 Stmnt parse_break(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     expect(parser, TokSemiColon);
 
-    return stmnt_break(index);
+    return stmnt_break(cursor);
 }
 
 Stmnt parse_fall(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     expect(parser, TokSemiColon);
 
-    return stmnt_fall(index);
+    return stmnt_fall(cursor);
 }
 
 Stmnt parse_if(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     expect(parser, TokLeftBracket);
     Expr cond = parse_expr(parser);
@@ -1614,7 +1600,7 @@ Stmnt parse_if(Parser *parser) {
         if (convert.kind == IkIdent) {
             capture = convert.expr;
         } else {
-            elog(parser, parser->cursors_idx, "capture must be a unique identifier");
+            elog(parser, parser->cursor, "capture must be a unique identifier");
             return parse_next_stmnt(parser);
         }
         expect(parser, TokRightSquare);
@@ -1635,7 +1621,7 @@ Stmnt parse_if(Parser *parser) {
                     next(parser);
                     arrpush(else_block, parse_if(parser));
                 } else {
-                    elog(parser, parser->cursors_idx, "unexpected identifier %s after `else`", after.string);
+                    elog(parser, parser->cursor, "unexpected identifier %s after `else`", after.string);
                     return parse_next_stmnt(parser);
                 }
             } else {
@@ -1652,11 +1638,11 @@ Stmnt parse_if(Parser *parser) {
             .kind = capture.kind == EkNone ? CkNone : CkIdent,
         },
         .els = else_block,
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_switch(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     expect(parser, TokLeftBracket);
 
@@ -1666,7 +1652,7 @@ Stmnt parse_switch(Parser *parser) {
     if (convert.kind == IkIdent) {
         ident = convert.expr;
     } else {
-        elog(parser, parser->cursors_idx, "expected identifer, got reserved word");
+        elog(parser, parser->cursor, "expected identifer, got reserved word");
         return parse_next_stmnt(parser);
     }
 
@@ -1677,20 +1663,20 @@ Stmnt parse_switch(Parser *parser) {
     while (true) {
         tok = next(parser);
         if (tok.kind != TokIdent) {
-            elog(parser, parser->cursors_idx, "expected keyword `else`, switch statements must end with an else case");
+            elog(parser, parser->cursor, "expected keyword `else`, switch statements must end with an else case");
             return parse_next_stmnt(parser);
         }
 
         convert = convert_ident(parser, tok);
-        size_t case_index = parser->cursors_idx;
+        Cursor case_index = parser->cursor;
 
         if (convert.kind != IkKeyword) {
-            elog(parser, parser->cursors_idx, "expected keyword `case` or `else`");
+            elog(parser, parser->cursor, "expected keyword `case` or `else`");
             return parse_next_stmnt(parser);
         }
 
         if (convert.keyword != KwCase && convert.keyword != KwElse) {
-            elog(parser, parser->cursors_idx, "expected keyword `case` or `else`");
+            elog(parser, parser->cursor, "expected keyword `case` or `else`");
             return parse_next_stmnt(parser);
         }
 
@@ -1719,17 +1705,17 @@ Stmnt parse_switch(Parser *parser) {
         .capture = (Capture){
             .kind = CkNone,
         },
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_extern(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
     Stmnt *stmnt = ealloc(sizeof(Stmnt)); *stmnt = parser_parse(parser);
-    return stmnt_extern(stmnt, index);
+    return stmnt_extern(stmnt, cursor);
 }
 
 Stmnt parse_for_each(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     Expr iterator = parse_expr(parser);
     expect(parser, TokRightBracket);
@@ -1749,7 +1735,7 @@ Stmnt parse_for_each(Parser *parser) {
             captures[0].kind = CkIdent;
             captures[0].ident = convert.expr;
         } else {
-            elog(parser, parser->cursors_idx, "capture must be a unique identifier");
+            elog(parser, parser->cursor, "capture must be a unique identifier");
             return parse_next_stmnt(parser);
         }
 
@@ -1766,7 +1752,7 @@ Stmnt parse_for_each(Parser *parser) {
             captures[1].kind = CkIdent;
             captures[1].ident = convert.expr;
         } else {
-            elog(parser, parser->cursors_idx, "capture must be a unique identifier");
+            elog(parser, parser->cursor, "capture must be a unique identifier");
             return parse_next_stmnt(parser);
         }
 
@@ -1780,7 +1766,7 @@ after_capture: {}
         .captures[0] = captures[0],
         .captures[1] = captures[1],
         .body = body,
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_for_decl(Parser *parser, Expr ident) {
@@ -1796,14 +1782,14 @@ Stmnt parse_for_decl(Parser *parser, Expr ident) {
         expect(parser, TokEqual);
         vardecl = parse_var_decl(parser, ident, type, true);
     } else {
-        elog(parser, parser->cursors_idx, "unexpected token %s in for loop", tokenkind_stringify(tok.kind));
+        elog(parser, parser->cursor, "unexpected token %s in for loop", tokenkind_stringify(tok.kind));
     }
 
     return vardecl;
 }
 
 Stmnt parse_for(Parser *parser) {
-    size_t index = (size_t)parser->cursors_idx;
+    Cursor cursor = parser->cursor;
 
     expect(parser, TokLeftBracket);
     if (peek(parser).kind != TokSemiColon && peek_after(parser).kind != TokColon) {
@@ -1822,7 +1808,7 @@ Stmnt parse_for(Parser *parser) {
     if (convert.kind == IkIdent) {
         ident = convert.expr;
     } else {
-        elog(parser, parser->cursors_idx, "expected identifer, got reserved word");
+        elog(parser, parser->cursor, "expected identifer, got reserved word");
         return parse_next_stmnt(parser);
     }
 
@@ -1852,7 +1838,7 @@ condition: {}
         .condition = cond,
         .update = update,
         .body = body,
-    }, index);
+    }, cursor);
 }
 
 Stmnt parse_directive(Parser *parser) {
@@ -1860,12 +1846,10 @@ Stmnt parse_directive(Parser *parser) {
 
     assert(tok.kind == TokDirective);
     Directive directive = parser_get_directive(parser, tok.string);
-    Stmnt d = stmnt_directive(directive, parser->cursors_idx);
+    Stmnt d = stmnt_directive(directive, parser->cursor);
 
     switch (directive.kind) {
-        case DkOutput:
-        case DkLink:
-        case DkSyslink: {
+        case DkImport: {
             tok = expect(parser, TokStrLit);
             expect(parser, TokSemiColon);
             d.directive.str = tok.string;
@@ -1910,20 +1894,20 @@ Stmnt parser_parse(Parser *parser) {
                     case KwFor:
                         return parse_for(parser);
                     default:
-                        elog(parser, parser->cursors_idx, "unexpected keyword \"%s\"", tok.string);
+                        elog(parser, parser->cursor, "unexpected keyword \"%s\"", tok.string);
                         return parse_next_stmnt(parser);
                 }
             }
         } break;
         case TokLeftCurl: {
-            size_t index = (size_t)parser->cursors_idx;
-            return stmnt_block(parse_block_curls(parser), index);
+            Cursor cursor = parser->cursor;
+            return stmnt_block(parse_block_curls(parser), cursor);
         } break;
         case TokDirective:
             return parse_directive(parser);
         default:
             next(parser);
-            elog(parser, parser->cursors_idx, "unexpected token %s", tokenkind_stringify(tok.kind));
+            elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
             parse_next_stmnt(parser);
             break;
     }

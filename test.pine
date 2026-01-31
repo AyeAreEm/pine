@@ -1,4 +1,0 @@
-whatever := []i32{1, 2};
-
-main :: fn() void {
-}

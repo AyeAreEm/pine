@@ -7,7 +7,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include <assert.h>
 #include "include/utils.h"
+
+#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
+#include <unistd.h>
+#elif defined(_WIN32) || defined(__MINGW32__)
+#include <direct.h>
+#define getcwd _getcwd
+#endif
+
 
 void vprintfln(const char *fmt, va_list args) {
     vprintf(fmt, args); 
@@ -370,4 +379,16 @@ const char *get_c_compiler(void) {
 
     comp_elog("gcc or clang not detected, please ensure you have one of these compilers");
     return "";
+}
+
+bool get_cwd(char *buf, size_t size) {
+    assert(buf != NULL);
+    assert(size != 0);
+
+    char *result = getcwd(buf, size);
+    if (result != NULL) {
+        return true;
+    }
+
+    return false;
 }

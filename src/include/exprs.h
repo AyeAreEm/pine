@@ -134,7 +134,7 @@ typedef struct Unop {
 
 typedef struct Expr {
     ExprKind kind;
-    size_t cursors_idx;
+    Cursor cursor;
     Type type;
 
     union {
@@ -158,25 +158,25 @@ typedef struct Expr {
 } Expr;
 
 Expr expr_none(void);
-Expr expr_true(size_t index);
-Expr expr_false(size_t index);
-Expr expr_null(Type t, size_t index);
-Expr expr_type(Type v, size_t index);
+Expr expr_true(Cursor cursor);
+Expr expr_false(Cursor cursor);
+Expr expr_null(Type t, Cursor cursor);
+Expr expr_type(Type v, Cursor cursor);
 
-Expr expr_intlit(const char *s, Type t, size_t index);
-Expr expr_floatlit(const char *s, Type t, size_t index);
-Expr expr_charlit(const char *s, size_t index);
-Expr expr_strlit(const char *s, size_t index);
-Expr expr_ident(const char *s, Type t, size_t index);
+Expr expr_intlit(const char *s, Type t, Cursor cursor);
+Expr expr_floatlit(const char *s, Type t, Cursor cursor);
+Expr expr_charlit(const char *s, Cursor cursor);
+Expr expr_strlit(const char *s, Cursor cursor);
+Expr expr_ident(const char *s, Type t, Cursor cursor);
 
-Expr expr_literal(Literal v, Type t, size_t index);
-Expr expr_fncall(FnCall v, Type t, size_t index);
-Expr expr_binop(Binop v, Type t, size_t index);
-Expr expr_unop(Unop v, Type t, size_t index);
-Expr expr_group(Arr(Expr) v, Type t, size_t index);
-Expr expr_range(RangeLit v, Type t, size_t index);
-Expr expr_fieldaccess(FieldAccess v, Type t, size_t index);
-Expr expr_arrayindex(ArrayIndex v, Type t, size_t index);
-Expr expr_arrayslice(ArraySlice v, Type t, size_t index);
+Expr expr_literal(Literal v, Type t, Cursor cursor);
+Expr expr_fncall(FnCall v, Type t, Cursor cursor);
+Expr expr_binop(Binop v, Type t, Cursor cursor);
+Expr expr_unop(Unop v, Type t, Cursor cursor);
+Expr expr_group(Arr(Expr) v, Type t, Cursor cursor);
+Expr expr_range(RangeLit v, Type t, Cursor cursor);
+Expr expr_fieldaccess(FieldAccess v, Type t, Cursor cursor);
+Expr expr_arrayindex(ArrayIndex v, Type t, Cursor cursor);
+Expr expr_arrayslice(ArraySlice v, Type t, Cursor cursor);
 
 #endif // EXPRS_H
