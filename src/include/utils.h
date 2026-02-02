@@ -10,9 +10,14 @@
 
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
 #include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
 #elif defined(_WIN32) || defined(__MINGW32__)
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
+#include <direct.h>
+#include <windows.h>
+#define getcwd _getcwd
 #endif
 
 #define TERM_RED     "\x1b[31m"
@@ -88,10 +93,11 @@ void *erealloc(void *mem, size_t size);
 
 const char *get_c_compiler(void);
 
-// returns false if failed
-bool get_cwd(char* buf, size_t size);
-
 // returns NULL if no files or failed to open
 // if any extension is fine, use empty string
 Arr(char *) files_in_folder(const char *foldername, const char *extension);
+
+// return allocated string, needs to be freed
+char *get_cwd();
+char *strip_path(char *path);
 #endif // UTILS_H

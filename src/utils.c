@@ -10,15 +10,6 @@
 #include <assert.h>
 #include "include/utils.h"
 
-#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
-#include <dirent.h>
-#include <unistd.h>
-#elif defined(_WIN32) || defined(__MINGW32__)
-#include <direct.h>
-#include <windows.h>
-#define getcwd _getcwd
-#endif
-
 void vprintfln(const char *fmt, va_list args) {
     vprintf(fmt, args); 
     printf("\n");
@@ -405,18 +396,6 @@ const char *get_c_compiler(void) {
     return "";
 }
 
-bool get_cwd(char *buf, size_t size) {
-    assert(buf != NULL);
-    assert(size != 0);
-
-    char *result = getcwd(buf, size);
-    if (result != NULL) {
-        return true;
-    }
-
-    return false;
-}
-
 Arr(char *) files_in_folder(const char *foldername, const char *extension) {
     Arr(char *) files = NULL;
 
@@ -468,4 +447,25 @@ Arr(char *) files_in_folder(const char *foldername, const char *extension) {
 #endif
 
     return files;
+}
+
+char *get_cwd() {
+    size_t size = 0;
+
+#if defined(_WIN32) || defined(_WIN64)
+    size = MAX_PATH;
+#else
+    size = PATH_MAX;
+#endif
+    char *buf = ealloc(size);
+
+    return getcwd(buf, size);
+}
+
+char *strip_path(char *path) {
+    char *name = strrchr(path, '/');
+    if (name == NULL) {
+        name = strrchr(path, '\\');
+    }
+    return name ? name + 1 : NULL;
 }

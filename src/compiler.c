@@ -50,6 +50,7 @@ static void compiler_invoke_cc(Compiler *compiler) {
     //     strbprintf(&com, " %s", flags.links[i]);
     // }
 
+    debug("%s", com);
     FILE *fd = popen(com, "r");
     if (fd == NULL) {
         comp_elog("failed to compile");
@@ -91,7 +92,6 @@ void compiler_import(Compiler *compiler, const char *path) {
         for (Stmnt stmnt = parser_parse(&parser); stmnt.kind != SkNone; stmnt = parser_parse(&parser)) {
             arrpush(ast, stmnt);
         }
-        print_stmnts(ast);
 
         if (parser.error_count > 0) {
             exit(1);
@@ -112,8 +112,6 @@ void compiler_build(Compiler *compiler) {
         exit(1);
     }
 
-    exit(1);
-
     Gen gen = gen_init(sema.modules[0].ast, sema.modules[0].dgraph, compiler->cli.rootfolder);
     gen_generate(&gen);
 
@@ -121,7 +119,15 @@ void compiler_build(Compiler *compiler) {
     write_entire_file("output.c", gen.code);
 
     if (strlen(compiler->options.output) == 0) {
-        compiler->options.output = filename_from_path(compiler->cli.rootfolder);
+        if (streq(compiler->cli.rootfolder, ".")) {
+            char *cwd = get_cwd();
+            char *cwd_name = strip_path(cwd);
+            compiler->options.output = strdup(cwd_name);
+            debug("%s", compiler->options.output);
+            free(cwd);
+        } else {
+            compiler->options.output = compiler->cli.rootfolder;
+        }
     }
     compiler_invoke_cc(compiler);
 }
