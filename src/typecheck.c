@@ -30,18 +30,6 @@ static const uint64_t U16_MAX = UINT16_MAX;
 static const uint64_t U32_MAX = UINT32_MAX;
 // static const uint64_t U64_MAX = UINT64_MAX;
 
-static void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
-
-    va_list args;
-    va_start(args, msg);
-
-    veprintfln(msg, args);
-
-    va_end(args);
-    exit(1);
-}
-
 bool tc_ptr_equals(Sema *sema, Type lhs, Type *rhs) {
     if (lhs.kind == TkPtr && rhs->kind != TkPtr) {
         return false;

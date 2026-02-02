@@ -29,6 +29,7 @@ typedef enum StmntKind {
     SkExtern,
     SkDirective,
     SkDefer,
+    SkMetadata,
 } StmntKind;
 
 typedef struct FnDecl {
@@ -120,6 +121,15 @@ typedef struct Directive {
     const char *str; // import 
 } Directive;
 
+typedef enum MetadataKind {
+    MkFilename,
+} MetadataKind;
+
+typedef struct Metadata {
+    MetadataKind kind;
+    const char *data;
+} Metadata;
+
 typedef struct Stmnt {
     StmntKind kind;
     Cursor cursor;
@@ -145,10 +155,14 @@ typedef struct Stmnt {
 
         Arr(Stmnt) block;
         Directive directive;
+
+        Metadata metadata;
     };
 } Stmnt;
 
 Stmnt stmnt_none(void);
+Stmnt stmnt_metadata(Metadata v);
+
 Stmnt stmnt_extern(Stmnt *v, Cursor cursor);
 Stmnt stmnt_fndecl(FnDecl v, Cursor cursor);
 Stmnt stmnt_structdecl(StructDecl v, Cursor cursor);
@@ -172,5 +186,7 @@ Stmnt stmnt_block(Arr(Stmnt) v, Cursor cursor);
 
 Stmnt stmnt_directive(Directive v, Cursor cursor);
 Stmnt stmnt_fncall(FnCall v, Cursor cursor);
+
+void print_stmnts(Arr(Stmnt) stmnts);
 
 #endif // STMNTS_H

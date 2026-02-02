@@ -11,23 +11,6 @@
 #include "stb_ds.h"
 #include "strb.h"
 
-typedef enum OptLevel {
-    OlZero,
-    OlOne,
-    OlTwo,
-    OlThree,
-    OlDebug,
-    OlFast,
-    OlSmall,
-} OptLevel;
-
-typedef struct CompileFlags {
-    bool keepc;
-    OptLevel optimisation;
-    Arr(const char*) links;
-    const char *output;
-} CompileFlags;
-
 typedef struct Defer {
     Stmnt *stmnt;
     uint8_t indent;
@@ -43,8 +26,6 @@ typedef struct Gen {
     uint8_t indent;
 
     bool in_defs;
-
-    CompileFlags compile_flags;
 
     Dgraph dgraph;
     Arr(Defer) defers;

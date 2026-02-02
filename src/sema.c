@@ -6,6 +6,7 @@
 #include "include/eval.h"
 #include "include/exprs.h"
 #include "include/lexer.h"
+#include "include/module.h"
 #include "include/stb_ds.h"
 #include "include/sema.h"
 #include "include/stmnts.h"
@@ -14,9 +15,7 @@
 #include "include/utils.h"
 #include "include/typecheck.h"
 
-#define ERRORS_MAX 5
-
-static void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
+void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
     sema->error_count++;
     eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
 
@@ -72,116 +71,17 @@ Stmnt ast_find_decl(Arr(Stmnt) ast, const char *key) {
     return stmnt_none();
 }
 
-SymTab symtab_init(void) {
-    SymTab symtab = {
-        .stmnts = NULL,
-        .keys = NULL,
-        .cur_scope = 0,
-    };
-    arrpush(symtab.keys, NULL);
-    arrpush(symtab.stmnts, NULL);
-
-    return symtab;
-}
-
-Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor) {
-    size_t index = 0;
-    bool found = false;
-
-    for (size_t i = 0; i < arrlenu(sema->symtab.keys[sema->symtab.cur_scope]); i++) {
-        if (streq(key, sema->symtab.keys[sema->symtab.cur_scope][i])) {
-            index = i;
-            found = true;
-            break;
-        }
-    }
-
-    if (found) return sema->symtab.stmnts[sema->symtab.cur_scope][index];
-
-    // if not in symtab, see if it's defined at least
-    Stmnt stmnt = ast_find_decl(sema->ast, key);
-    if (stmnt.kind != SkNone) return stmnt;
-
-    elog(sema, cursor, "use of undefined \"%s\"", key);
-    return stmnt_none();
-}
-
-void symtab_push(Sema *sema, const char *key, Stmnt value) {
-    for (size_t i = 0; i < arrlenu(sema->symtab.keys[sema->symtab.cur_scope]); i++) {
-        if (streq(key, sema->symtab.keys[sema->symtab.cur_scope][i])) {
-            Cursor cursor = sema->symtab.stmnts[sema->symtab.cur_scope][i].cursor;
-            elog(sema, value.cursor, "redeclaration of \"%s\" from %zu:%zu", key, cursor.row, cursor.col);
-            return;
-        }
-    }
-
-    arrpush(sema->symtab.keys[sema->symtab.cur_scope], key);
-    arrpush(sema->symtab.stmnts[sema->symtab.cur_scope], value);
-}
-
-void symtab_new_scope(Sema *sema) {
-    Arr(const char*) keys = NULL;
-    Arr(Stmnt) stmnts = NULL;
-
-    for (size_t i = 0; i < arrlenu(sema->symtab.keys[sema->symtab.cur_scope]); i++) {
-        arrpush(keys, sema->symtab.keys[sema->symtab.cur_scope][i]);
-        arrpush(stmnts, sema->symtab.stmnts[sema->symtab.cur_scope][i]);
-    }
-
-    arrpush(sema->symtab.keys, keys);
-    arrpush(sema->symtab.stmnts, stmnts);
-    sema->symtab.cur_scope++;
-}
-
-void symtab_pop_scope(Sema *sema) {
-    // (void) to silence warnings
-    (void)arrpop(sema->symtab.keys);
-    (void)arrpop(sema->symtab.stmnts);
-    sema->symtab.cur_scope--;
-}
-
-Dgraph dgraph_init(void) {
-    return (Dgraph){
-        .names = NULL,
-        .children = NULL,
-    };
-}
-void dgraph_push(Dgraph *graph, Dnode node) {
-    bool found = false;
-    for (size_t i = 0; i < arrlenu(graph->names); i++) {
-        if (streq(graph->names[i], node.name)) {
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        arrpush(graph->names, node.name);
-        arrpush(graph->children, node);
-    }
-}
-
-Sema sema_init(Arr(Stmnt) ast, const char *filename) {
-    hmsi64 *typedef_sizes = NULL;
-    shdefault(typedef_sizes, -1);
-
+Sema sema_init(Arr(Module) modules) {
     return (Sema){
-        .ast = ast,
-        .symtab = symtab_init(),
-        .typedef_sizes = typedef_sizes,
+        .modules = modules,
+        .module_idx = 0,
         .envinfo = {
             .fn = stmnt_none(),
             .forl = false,
             .casef = false,
             .fall = false,
         },
-        .compile_flags = {
-            .output = false,
-            .optimise = false,
-        },
-        .dgraph = dgraph_init(),
-
-        .filename = filename,
+        .filename = "",
         .error_count = 0,
     };
 }
@@ -1487,11 +1387,22 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
     symtab_pop_scope(sema);
 }
 
+void sema_metadata(Sema *sema, Stmnt *stmnt) {
+    switch (stmnt->metadata.kind) {
+        case MkFilename:
+            sema->filename = stmnt->metadata.data;
+            break;
+    }
+}
+
 void sema_block(Sema *sema, Arr(Stmnt) body) {
     for (size_t i = 0; i < arrlenu(body); i++) {
         Stmnt *stmnt = &body[i];
         switch (stmnt->kind) {
             case SkNone:
+                break;
+            case SkMetadata:
+                sema_metadata(sema, stmnt);
                 break;
             case SkDirective:
                 sema_directive(sema, stmnt);
@@ -1654,6 +1565,9 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
     switch (stmnt->defer->kind) {
         case SkNone:
             break;
+        case SkMetadata:
+            assert("tried to defer metadata, somthing went wrong...");
+            break;
         case SkVarReassign:
             sema_var_reassign(sema, stmnt->defer);
             break;
@@ -1712,6 +1626,9 @@ void sema_extern(Sema *sema, Stmnt *stmnt) {
 
     switch (stmnt->externf->kind) {
         case SkNone:
+            break;
+        case SkMetadata:
+            assert("tried to extern metadata, something went wrong");
             break;
         case SkFnDecl:
             sema_fn_decl(sema, stmnt->externf);
@@ -1787,7 +1704,7 @@ void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
         Stmnt *f = &stmnt->structdecl.fields[i];
 
         if (f->vardecl.type.kind == TkTypeDef) {
-            Stmnt decl = ast_find_decl(sema->ast, f->vardecl.type.typedeff);
+            Stmnt decl = ast_find_decl(SEMA_CURRENT_MODULE.ast, f->vardecl.type.typedeff);
             if (decl.kind == SkNone) continue;
 
             Arr(const char*) new_visited = NULL;
@@ -1810,7 +1727,7 @@ void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
             } else if (decl.kind == SkEnumDecl) {
                 name = decl.enumdecl.name;
 
-                dgraph_push(&sema->dgraph, (Dnode){
+                dgraph_push(&SEMA_CURRENT_MODULE.dgraph, (Dnode){
                     .name = name.ident,
                     .us = decl,
                     .children = NULL,
@@ -1822,7 +1739,7 @@ void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
         } else if (f->vardecl.type.kind == TkOption) {
             // we need to explicitly check if it's an option between we need to generate the underlying type
             if (f->vardecl.type.option.subtype->kind == TkTypeDef) {
-                Stmnt decl = ast_find_decl(sema->ast, f->vardecl.type.option.subtype->typedeff);
+                Stmnt decl = ast_find_decl(SEMA_CURRENT_MODULE.ast, f->vardecl.type.option.subtype->typedeff);
                 if (decl.kind != SkNone) {
                     sema_struct_decl_deps(sema, &decl, visited);
                     arrpush(children, decl.structdecl.name.ident);
@@ -1831,7 +1748,7 @@ void sema_struct_decl_deps(Sema *sema, Stmnt *stmnt, Arr(const char*) visited) {
         }
     }
 
-    dgraph_push(&sema->dgraph, (Dnode){
+    dgraph_push(&SEMA_CURRENT_MODULE.dgraph, (Dnode){
         .name = stmnt->structdecl.name.ident,
         .us = *stmnt,
         .children = children,
@@ -1888,7 +1805,7 @@ void sema_struct_decl(Sema *sema, Stmnt *stmnt) {
     }
 
     assert(structd->name.kind == EkIdent);
-    shput(sema->typedef_sizes, structd->name.ident, (int64_t)total_size);
+    shput(SEMA_CURRENT_MODULE.typedef_sizes, structd->name.ident, (int64_t)total_size);
 
     sema_block(sema, structd->fields);
 
@@ -1921,7 +1838,7 @@ void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
         }
     }
 
-    dgraph_push(&sema->dgraph, (Dnode){
+    dgraph_push(&SEMA_CURRENT_MODULE.dgraph, (Dnode){
         .name = stmnt->enumdecl.name.ident,
         .us = *stmnt,
         .children = NULL,
@@ -1931,10 +1848,15 @@ void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
 }
 
 void sema_analyse(Sema *sema) {
-    for (size_t i = 0; i < arrlenu(sema->ast); i++) {
-        Stmnt *stmnt = &sema->ast[i];
-        switch (stmnt->kind) {
+    for (size_t i = 0; i < arrlenu(sema->modules); i++) {
+        sema->module_idx = i;
+        for (size_t j = 0; j < arrlenu(sema->modules[i].ast); j++) {
+            Stmnt *stmnt = &sema->modules[i].ast[j];
+            switch (stmnt->kind) {
             case SkNone:
+                break;
+            case SkMetadata:
+                sema_metadata(sema, stmnt);
                 break;
             case SkDirective:
                 sema_directive(sema, stmnt);
@@ -1994,6 +1916,7 @@ void sema_analyse(Sema *sema) {
             case SkForEach:
                 elog(sema, stmnt->cursor, "illegal use of for loop, not inside a function");
                 break;
+            }
         }
     }
 }

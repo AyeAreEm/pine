@@ -50,11 +50,6 @@ Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename) {
         .code_loc = 0,
         .generated_typedefs = NULL,
 
-        .compile_flags = {
-            .links = NULL,
-            .optimisation = OlDebug,
-            .output = "",
-        },
         .filename = filename,
     };
 }
@@ -73,47 +68,6 @@ void gen_pop_defers(Gen *gen) {
             arrdel(gen->defers, i);
         }
     }
-}
-
-void gen_directive(Gen *gen, Stmnt stmnt) {
-    assert(stmnt.kind == SkDirective);
-    (void)gen;
-    // switch (stmnt.directive.kind) {
-    //     case DkLink:
-    //         arrpush(gen->compile_flags.links, stmnt.directive.str);
-    //         break;
-    //     case DkSyslink: {
-    //         strb l = NULL;
-    //         strbprintf(&l, "-l%s", stmnt.directive.str);
-    //         arrpush(gen->compile_flags.links, l);
-    //     } break;
-    //     case DkOutput:
-    //         gen->compile_flags.output = stmnt.directive.str;
-    //         break;
-    //     case DkO0:
-    //         gen->compile_flags.optimisation = OlZero;
-    //         break;
-    //     case DkO1:
-    //         gen->compile_flags.optimisation = OlOne;
-    //         break;
-    //     case DkO2:
-    //         gen->compile_flags.optimisation = OlTwo;
-    //         break;
-    //     case DkO3:
-    //         gen->compile_flags.optimisation = OlThree;
-    //         break;
-    //     case DkOdebug:
-    //         gen->compile_flags.optimisation = OlDebug;
-    //         break;
-    //     case DkOfast:
-    //         gen->compile_flags.optimisation = OlFast;
-    //         break;
-    //     case DkOsmall:
-    //         gen->compile_flags.optimisation = OlSmall;
-    //         break;
-    //     default:
-    //         break;
-    // }
 }
 
 void gen_write(Gen *gen, const char *fmt, ...) {
@@ -1448,8 +1402,9 @@ void gen_stmnt(Gen *gen, Stmnt *stmnt) {
     switch (stmnt->kind) {
         case SkNone:
             break;
+        case SkMetadata:
+            break;
         case SkDirective:
-            gen_directive(gen, *stmnt);
             break;
         case SkExtern:
             gen_extern(gen, *stmnt);
@@ -1722,7 +1677,6 @@ void gen_generate(Gen *gen) {
         Stmnt stmnt = gen->ast[i];
         switch (stmnt.kind) {
             case SkDirective:
-                gen_directive(gen, stmnt);
                 break;
             case SkExtern:
                 gen_extern(gen, stmnt);

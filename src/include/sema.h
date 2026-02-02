@@ -8,43 +8,14 @@
 #include "stb_ds.h"
 #include "exprs.h"
 #include "stmnts.h"
+#include "module.h"
 
-typedef struct Sema Sema;
-
-typedef struct SymTab {
-    Arr(Arr(Stmnt)) stmnts;
-    Arr(Arr(const char*)) keys;
-    size_t cur_scope;
-} SymTab;
-
-SymTab symtab_init(void);
-Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor);
-void symtab_push(Sema *sema, const char *key, Stmnt value);
-void symtab_new_scope(Sema *sema);
-void symtab_pop_scope(Sema *sema);
-
-typedef struct Dnode {
-    const char *name;
-    Stmnt us;
-    Arr(const char*) children;
-} Dnode;
-
-typedef struct Dgraph {
-    Arr(const char*) names;
-    Arr(Dnode) children;
-} Dgraph;
-
-Dgraph dgraph_init(void);
-void dgraph_push(Dgraph *graph, Dnode node);
-
-// string key, i64 value hashmap
-typedef Sh(int64_t) hmsi64;
+#define ERRORS_MAX 5
+void elog(Sema *sema, Cursor cursor, const char *msg, ...);
 
 typedef struct Sema {
-    Arr(Stmnt) ast;
-    SymTab symtab;
-
-    hmsi64 *typedef_sizes;
+    Arr(Module) modules;
+    size_t module_idx;
 
     struct {
         Stmnt fn; // can be SkNone
@@ -53,18 +24,13 @@ typedef struct Sema {
         bool fall;
     } envinfo;
 
-    struct {
-        bool output;
-        bool optimise;
-    } compile_flags;
-
-    Dgraph dgraph;
-
     const char *filename;
     int error_count;
 } Sema;
 
-Sema sema_init(Arr(Stmnt) ast, const char *filename);
+#define SEMA_CURRENT_MODULE sema->modules[sema->module_idx]
+
+Sema sema_init(Arr(Module) modules);
 Type *resolve_expr_type(Sema *sema, Expr *expr);
 void sema_analyse(Sema *sema);
 void sema_extern(Sema *sema, Stmnt *stmnt);

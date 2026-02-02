@@ -179,4 +179,6 @@ Expr expr_fieldaccess(FieldAccess v, Type t, Cursor cursor);
 Expr expr_arrayindex(ArrayIndex v, Type t, Cursor cursor);
 Expr expr_arrayslice(ArraySlice v, Type t, Cursor cursor);
 
+strb expr_stringify(Expr expr);
+
 #endif // EXPRS_H

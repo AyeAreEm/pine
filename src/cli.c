@@ -10,8 +10,8 @@ static Cli cli_init(char ***argv, int *argc) {
     return (Cli){
         .help = false,
         .command = CommandNone,
-        .keepc = false,
-        .filename = "",
+        .emitc = false,
+        .rootfolder = "",
         .pass_to_prog = false,
         .argv = *argv,
         .argc = *argc,
@@ -64,10 +64,10 @@ static void cli_parse_build(Cli *cli) {
     cli->command = CommandBuild;
     char *arg = cli_args_next(cli);
     if (cli_is_command(arg)) {
-        comp_elog("unexpected %s, expected filename or help", arg);
+        comp_elog("unexpected %s, expected folder or help", arg);
     }
 
-    cli->filename = arg;
+    cli->rootfolder = arg;
 }
 
 static void cli_parse_run(Cli *cli) {
@@ -78,10 +78,10 @@ static void cli_parse_run(Cli *cli) {
     cli->command = CommandRun;
     char *arg = cli_args_next(cli);
     if (cli_is_command(arg)) {
-        comp_elog("unexpected %s, expected filename or help", arg);
+        comp_elog("unexpected %s, expected folder or help", arg);
     }
 
-    cli->filename = arg;
+    cli->rootfolder = arg;
 }
 
 void cli_usage(Cli cli, bool force) {
@@ -93,21 +93,21 @@ void cli_usage(Cli cli, bool force) {
         "Usage: pine [flags] [command] [options]\n"
         "\n"
         "Flags:\n"
-        "  -emit-c      Emit C source code\n"
+        "  -emit-c  Emit C source code\n"
         "\n"
         "Commands:\n"
-        "  build   Build project\n"
-        "  run     Build and run project\n"
+        "  build    Build project\n"
+        "  run      Build and run project\n"
         "\n"
         "Options:\n"
-        "  help    Print command usage\n"
+        "  help     Print command usage\n"
     ;
 
-    const char *build_usage = "Usage: pine build [file]\n";
+    const char *build_usage = "Usage: pine build [folder]\n";
 
     const char *run_usage =
-        "Usage: pine run [file]\n"
-        "       pine run [file] -- [args]\n"
+        "Usage: pine run [folder]\n"
+        "       pine run [folder] -- [args]\n"
     ;
 
     switch (cli.command) {
@@ -137,7 +137,7 @@ Cli cli_parse(char **argv, int argc) {
         } else if (streq(arg, "help")) {
             cli_parse_help(&cli);
         } else if (streq(arg, "-emit-c")) {
-            cli.keepc = true;
+            cli.emitc = true;
         } else if (streq(arg, "--")) {
             cli.pass_to_prog = true;
             break;

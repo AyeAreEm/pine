@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "stb_ds.h"
 
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
 #include <sys/types.h>
@@ -36,12 +37,9 @@ typedef SSIZE_T ssize_t;
 #define BITS_TO_BYTES(x) ((x) / 8)
 
 void vprintfln(const char *fmt, va_list args);
-
 void printfln(const char *fmt, ...);
-
 void veprintf(const char *fmt, va_list args);
 void veprintfln(const char *fmt, va_list args);
-
 void eprintf(const char *fmt, ...);
 void eprintfln(const char *fmt, ...);
 
@@ -71,9 +69,7 @@ bool parse_u64(const char *str, uint64_t *n);
 bool parse_f64(const char *str, double *n);
 
 void strclear(char *str);
-
 bool streq(const char *s1, const char *s2);
-
 int strhas(const char *hay, const char *needle);
 bool strstartswith(const char *hay, const char *needle);
 
@@ -94,4 +90,8 @@ const char *get_c_compiler(void);
 
 // returns false if failed
 bool get_cwd(char* buf, size_t size);
+
+// returns NULL if no files or failed to open
+// if any extension is fine, use empty string
+Arr(char *) files_in_folder(const char *foldername, const char *extension);
 #endif // UTILS_H

@@ -9,6 +9,7 @@
 #include "keywords.h"
 #include "exprs.h"
 #include "stmnts.h"
+#include "compiler.h"
 
 typedef struct Parser {
     bool in_func_decl_args;
@@ -21,10 +22,12 @@ typedef struct Parser {
     Arr(Token) tokens;
 } Parser;
 
+Parser parser_init(Arr(Token) tokens, const char *filename);
+Stmnt parser_parse(Parser *parser);
+void parser_import_pass(Compiler *compiler, Parser parser);
+
 Expr parse_expr(Parser *parser);
 Expr parse_array_index(Parser *parser, Expr expr);
 Expr parse_field_access(Parser *parser, Expr expr);
-Parser parser_init(Lexer lex, const char *filename);
-Stmnt parser_parse(Parser *parser);
 
 #endif // PARSER_H

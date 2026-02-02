@@ -11,12 +11,13 @@
 #include "include/utils.h"
 
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
+#include <dirent.h>
 #include <unistd.h>
 #elif defined(_WIN32) || defined(__MINGW32__)
 #include <direct.h>
+#include <windows.h>
 #define getcwd _getcwd
 #endif
-
 
 void vprintfln(const char *fmt, va_list args) {
     vprintf(fmt, args); 
@@ -309,6 +310,29 @@ bool strstartswith(const char *hay, const char *needle) {
     return true;
 }
 
+bool strendswith(const char *hay, const char *needle) {
+    size_t hay_len = strlen(hay);
+    size_t needle_len = strlen(needle);
+
+    if  (hay_len < needle_len) {
+        return false;
+    }
+
+    size_t needle_idx = needle_len - 1;
+    for (size_t i = hay_len - 1; i > 0; i--) {
+        if (hay[i] != needle[needle_idx]) {
+            return false;
+        }
+
+        if (needle_idx == 0) {
+            break;
+        }
+        needle_idx--;
+    }
+
+    return true;
+}
+
 // from and to must be of the same size
 bool strreplace(char *s, const char *from, const char *to) {
     if (strlen(from) != strlen(to)) {
@@ -391,4 +415,57 @@ bool get_cwd(char *buf, size_t size) {
     }
 
     return false;
+}
+
+Arr(char *) files_in_folder(const char *foldername, const char *extension) {
+    Arr(char *) files = NULL;
+
+#if defined(_WIN32) || defined(__MINGW32__)
+    char search_path[MAX_PATH];
+    if (strlen(foldername) >= MAX_PATH - 3) {
+        return files;
+    }
+    snprintf(search_path, MAX_PATH, "%s\\*", foldername);
+
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
+
+    if (find_handle == INVALID_HANDLE_VALUE) {
+        return files;
+    }
+
+    do {
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            continue;
+        }
+
+        if (!strendswith(find_data.cFileName, extension)) {
+            continue;
+        }
+
+        arrpush(files, strdup(find_data.cFileName));
+    } while (FindNextFileA(find_handle, &find_data));
+    FindClose(find_handle);
+#else
+    DIR *dir = opendir(foldername);
+    if (!dir) {
+        return files;
+    }
+
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_type == DT_DIR) {
+            continue;
+        }
+
+        if (!strendswith(ent->d_name, extension)) {
+            continue;
+        }
+
+        arrpush(files, strdup(ent->d_name));
+    }
+    closedir(dir);
+#endif
+
+    return files;
 }

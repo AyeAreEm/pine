@@ -13,11 +13,11 @@ typedef enum Command {
 typedef struct Cli {
     Command command;
     bool help;
-    bool keepc;
+    bool emitc;
     bool pass_to_prog;
     int argc;
     char **argv;
-    char *filename;
+    char *rootfolder;
 } Cli;
 
 void cli_usage(Cli cli, bool force);

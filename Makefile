@@ -27,6 +27,9 @@ HEADER_LEXER = src/include/lexer.h
 
 SRC_MAIN = src/main.c
 BIN_MAIN = bin/main.o
+
+SRC_COMPILER = src/compiler.c
+BIN_COMPILER = bin/compiler.o
 HEADER_COMPILER = src/include/compiler.h
 
 SRC_PARSER = src/parser.c
@@ -61,7 +64,19 @@ SRC_BUILTIN_DEFS_TXT = src/pine_builtin_defs.txt
 SRC_BUILTIN_DEFS = src/builtin_defs.c
 BIN_BUILTIN_DEFS = bin/builtin_defs.o
 
-BINS = $(BIN_CLI) $(BIN_EVAL) $(BIN_GEN) $(BIN_EXPRS) $(BIN_KEYWORDS) $(BIN_LEXER) $(BIN_MAIN) $(BIN_PARSER) $(BIN_SEMA) $(BIN_STMNTS) $(BIN_STRB) $(BIN_TYPECHECK) $(BIN_TYPES) $(BIN_UTILS) $(BIN_BUILTIN_DEFS)
+SRC_MODULE = src/module.c
+BIN_MODULE = bin/module.o
+HEADER_MODULE = src/include/module.h
+
+SRC_SYMTAB = src/symtab.c
+BIN_SYMTAB = bin/symtab.o
+HEADER_SYMTAB = src/include/symtab.h
+
+SRC_DGRAPH = src/dgraph.c
+BIN_DGRAPH = bin/dgraph.o
+HEADER_DGRAPH = src/include/dgraph.h
+
+BINS = $(BIN_CLI) $(BIN_EVAL) $(BIN_GEN) $(BIN_EXPRS) $(BIN_KEYWORDS) $(BIN_LEXER) $(BIN_MAIN) $(BIN_PARSER) $(BIN_SEMA) $(BIN_STMNTS) $(BIN_STRB) $(BIN_TYPECHECK) $(BIN_TYPES) $(BIN_UTILS) $(BIN_BUILTIN_DEFS) $(BIN_COMPILER) $(BIN_MODULE) $(BIN_SYMTAB) $(BIN_DGRAPH)
 
 pine: $(BINS)
 	$(CC) $(CFLAGS) -o pine $(BINS)
@@ -90,8 +105,11 @@ $(BIN_KEYWORDS): $(SRC_KEYWORDS) $(HEADER_KEYWORDS)
 $(BIN_LEXER): $(SRC_LEXER) $(HEADER_LEXER)
 	$(CC) $(CFLAGS) -c $(SRC_LEXER) -o $(BIN_LEXER)
 
-$(BIN_MAIN): $(SRC_MAIN) $(HEADER_COMPILER)
+$(BIN_MAIN): $(SRC_MAIN)
 	$(CC) $(CFLAGS) -c $(SRC_MAIN) -o $(BIN_MAIN)
+
+$(BIN_COMPILER): $(SRC_COMPILER) $(HEADER_COMPILER)
+	$(CC) $(CFLAGS) -c $(SRC_COMPILER) -o $(BIN_COMPILER)
 
 $(BIN_PARSER): $(SRC_PARSER) $(HEADER_PARSER)
 	$(CC) $(CFLAGS) -c $(SRC_PARSER) -o $(BIN_PARSER)
@@ -113,6 +131,15 @@ $(BIN_TYPES): $(SRC_TYPES) $(HEADER_TYPES)
 
 $(BIN_UTILS): $(SRC_UTILS) $(HEADER_UTILS)
 	$(CC) $(CFLAGS) -c $(SRC_UTILS) -o $(BIN_UTILS)
+
+$(BIN_MODULE): $(SRC_MODULE) $(HEADER_MODULE)
+	$(CC) $(CFLAGS) -c $(SRC_MODULE) -o $(BIN_MODULE)
+
+$(BIN_SYMTAB): $(SRC_SYMTAB) $(HEADER_SYMTAB)
+	$(CC) $(CFLAGS) -c $(SRC_SYMTAB) -o $(BIN_SYMTAB)
+
+$(BIN_DGRAPH): $(SRC_DGRAPH) $(HEADER_DGRAPH)
+	$(CC) $(CFLAGS) -c $(SRC_DGRAPH) -o $(BIN_DGRAPH)
 
 clean:
 	rm -rf bin/*.o pine

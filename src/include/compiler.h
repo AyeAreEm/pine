@@ -1,11 +1,34 @@
 #ifndef COMPILER_H
 #define COMPILER_H
 
+#include "cli.h"
 #include "stmnts.h"
+#include "stb_ds.h"
+#include "module.h"
 
-// handles importing a new file
-// lex + parse + sema
-// returns typechecked ast
-Arr(Stmnt) import(const char *filename);
+typedef enum Optimize {
+    OptNone,
+    OptDebug,
+    OptRelease,
+    OptSmall,
+    OptFast,
+} Optimize;
+
+typedef struct CompilerOptions {
+    const char *output;
+    Optimize optimize;
+} CompilerOptions;
+
+typedef struct Compiler {
+    Arr(Module) modules;
+    Cli cli;
+    CompilerOptions options;
+} Compiler;
+
+Compiler compiler_init(Cli cli);
+void compiler_compile(Compiler *compiler);
+
+// lex + parse
+void compiler_import(Compiler *compiler, const char *path);
 
 #endif // COMPILER_H

@@ -57,7 +57,7 @@ uint64_t eval_binop(Sema *sema, Expr *expr) {
 uint64_t eval_sizeof_typedef(Sema *sema, Type type) {
     assert(type.kind == TkTypeDef);
 
-    int64_t size = shget(sema->typedef_sizes, type.typedeff);
+    int64_t size = shget(SEMA_CURRENT_MODULE.typedef_sizes, type.typedeff);
     assert(size != -1 && "sizeof typedef not calculated...");
     return (uint64_t)size;
 }

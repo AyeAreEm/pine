@@ -6,6 +6,7 @@
 #include "include/exprs.h"
 #include "include/keywords.h"
 #include "include/parser.h"
+#include "include/compiler.h"
 #include "include/lexer.h"
 #include "include/stmnts.h"
 #include "include/strb.h"
@@ -81,20 +82,17 @@ static Directive directive_map(const char *str) {
 Directive parser_get_directive(Parser *parser, const char *word) {
     Directive d = directive_map(word);
 
-    switch (d.kind) {
-        case DkImport:
-            break;
-        case DkNone:
-            elog(parser, parser->cursor, "\"#%s\" is not a directive", word);
-            break;
+    if (d.kind == DkNone) {
+        elog(parser, parser->cursor, "\"#%s\" is not a directive", word);
     }
+
     return d;
 }
 
-Parser parser_init(Lexer lex, const char *filename) {
+Parser parser_init(Arr(Token) tokens, const char *filename) {
     return (Parser){
-        .tokens = lex.tokens,
-        .cursor = lex.tokens[0].cursor,
+        .tokens = tokens,
+        .cursor = tokens[0].cursor,
         .in_func_decl_args = false,
         .in_enum_decl = false,
 
@@ -1913,4 +1911,23 @@ Stmnt parser_parse(Parser *parser) {
     }
 
     return stmnt_none();
+}
+
+void parser_import_pass(Compiler *compiler, Parser parser) {
+    Arr(Token) toks = NULL;
+    for (size_t i = 0; i < arrlenu(parser.tokens); i++) {
+        arrpush(toks, parser.tokens[i]);
+    }
+    parser.tokens = toks;
+
+    for (Token tok = next(&parser); tok.kind != TokNone; tok = next(&parser)) {
+        if (tok.kind != TokDirective) continue;
+
+        Stmnt stmnt = parse_directive(&parser);
+        if (stmnt.directive.kind != DkImport) continue;
+
+        compiler_import(compiler, stmnt.directive.str);
+    }
+
+    arrfree(parser.tokens);
 }
