@@ -1267,7 +1267,7 @@ void gen_for(Gen *gen, Stmnt stmnt) {
             mastrfree(call);
             break;
         }
-        case SkVarReassign: {}
+        case SkVarReassign: {
             MaybeAllocStr reassign = gen_expr(gen, forf.update->varreassign.name);
             MaybeAllocStr value = gen_expr(gen, forf.update->varreassign.value);
             gen_write(gen, "%s = %s", reassign.str, value.str);
@@ -1275,6 +1275,7 @@ void gen_for(Gen *gen, Stmnt stmnt) {
             mastrfree(value);
             mastrfree(reassign);
             break;
+        }
         default:
             break;
     }

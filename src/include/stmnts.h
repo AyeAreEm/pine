@@ -187,6 +187,7 @@ Stmnt stmnt_block(Arr(Stmnt) v, Cursor cursor);
 Stmnt stmnt_directive(Directive v, Cursor cursor);
 Stmnt stmnt_fncall(FnCall v, Cursor cursor);
 
+strb stmnt_stringify(Stmnt stmnt);
 void print_stmnts(Arr(Stmnt) stmnts);
 
 #endif // STMNTS_H

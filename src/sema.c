@@ -1348,7 +1348,7 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
             }
             subtype = *foreach->iterator.type.array.of;
             break;
-        default: {}
+        default: {
             strb t = string_from_type(foreach->iterator.type);
             elog(sema, stmnt->cursor, "cannot iterate over %s, must be an array, slice, or range", t);
             strbfree(t);
@@ -1358,6 +1358,7 @@ void sema_for_each(Sema *sema, Stmnt *stmnt) {
             }
             subtype = type_poison();
             break;
+        }
     }
 
     symtab_new_scope(sema);
