@@ -24,7 +24,7 @@ Compiler compiler_init(Cli cli) {
 static void compiler_invoke_cc(Compiler *compiler) {
     const char *cc = get_c_compiler();
     strb com = NULL;
-    strbprintf(&com, "%s -o %s output.c ", cc, compiler->options.output);
+    strbprintf(&com, "%s -o %s.exe output.c ", cc, compiler->options.output);
 
     char *op = "";
     switch (compiler->options.optimize) {
@@ -134,11 +134,7 @@ void compiler_build(Compiler *compiler) {
 
 void compiler_run(Compiler *compiler) {
     strb com = NULL;
-#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__sun) || defined(__CYGWIN__)
-    strbprintf(&com, "./%s", compiler->options.output);
-#elif defined(_WIN32) || defined(__MINGW32__)
-    strbprintf(&com, "./%s.exe", exe);
-#endif
+    strbprintf(&com, "./%s.exe", compiler->options.output);
 
     for (int i = 0; i < compiler->cli.argc; i++) {
         strbprintf(&com, " %s", compiler->cli.argv[i]);

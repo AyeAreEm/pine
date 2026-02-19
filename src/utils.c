@@ -422,7 +422,10 @@ Arr(char *) files_in_folder(const char *foldername, const char *extension) {
             continue;
         }
 
-        arrpush(files, strdup(find_data.cFileName));
+        size_t file_path_length = strlen(foldername) + strlen(ent->d_name) + 1; // + 1 because '\' between folder and file name
+        char *file_path = ealloc(file_path_length + 1); // + 1 for '\0'
+        sprintf(file_path, "%s\\%s", foldername, ent->d_name);
+        arrpush(files, file_path);
     } while (FindNextFileA(find_handle, &find_data));
     FindClose(find_handle);
 #else
@@ -441,7 +444,10 @@ Arr(char *) files_in_folder(const char *foldername, const char *extension) {
             continue;
         }
 
-        arrpush(files, strdup(ent->d_name));
+        size_t file_path_length = strlen(foldername) + strlen(ent->d_name) + 1; // + 1 because '/' between folder and file name
+        char *file_path = ealloc(file_path_length + 1); // + 1 for '\0'
+        sprintf(file_path, "%s/%s", foldername, ent->d_name);
+        arrpush(files, file_path);
     }
     closedir(dir);
 #endif
