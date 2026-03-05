@@ -10,13 +10,15 @@
 typedef Sh(int64_t) hmsi64;
 
 typedef struct Module {
-    const char *name;
+    strb path;
     Arr(Stmnt) ast;
     SymTab symtab;
     Dgraph dgraph;
     hmsi64 *typedef_sizes;
+    size_t index;
+    bool analysed;
 } Module;
 
-Module module_init(const char *name, Arr(Stmnt) ast);
+Module module_init(strb path, Arr(Stmnt) ast, size_t index);
 
 #endif // MODULE_H

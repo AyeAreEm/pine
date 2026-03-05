@@ -2,15 +2,17 @@
 #include "include/dgraph.h"
 #include "include/symtab.h"
 
-Module module_init(const char *name, Arr(Stmnt) ast) {
+Module module_init(strb path, Arr(Stmnt) ast, size_t index) {
     hmsi64 *typedef_sizes = NULL;
     shdefault(typedef_sizes, -1);
 
     return (Module){
-        .name = name,
+        .path = path,
         .ast = ast,
         .typedef_sizes = typedef_sizes,
         .dgraph = dgraph_init(),
         .symtab = symtab_init(),
+        .analysed = false,
+        .index = index,
     };
 }

@@ -3,13 +3,12 @@
 - UTF-8 Strings
 - Generics
 - Result Type (!)
+- Multi Pointer type
 - Receiver Methods
 - Tagged Union Definitions
 - Tagged Union Literals
 - Traits
 - Variadic Arguments
-- Defining Libraries
-- Importing Libraries
 - Importing C Libraries and Headers
 - Compile Time Expressions
 - Compile Time Execution
@@ -22,6 +21,8 @@
 # In Progress
 - Iterative For Loops
 - Better Error Messages
+- Defining Libraries (import to namespace, prefix on all stmnts + some exprs)
+- Importing Libraries
 
 # Completed
 - Function Declarations

@@ -468,10 +468,25 @@ char *get_cwd() {
     return getcwd(buf, size);
 }
 
-char *strip_path(char *path) {
-    char *name = strrchr(path, '/');
-    if (name == NULL) {
-        name = strrchr(path, '\\');
-    }
+char *strip_path(const char *path) {
+    char *name;
+#if defined(_WIN32) || defined(_WIN64)
+    name = strrchr(path, '\\');
+#else
+    name = strrchr(path, '/');
+#endif
     return name ? name + 1 : NULL;
+}
+
+char *strip_filename(const char *path) {
+    char *name;
+#if defined(_WIN32) || defined(_WIN64)
+    name = strrchr(path, '\\');
+#else
+    name = strrchr(path, '/');
+#endif
+    ptrdiff_t len = name - path + 1;
+    char *p = ealloc(len);
+    snprintf(p, len, "%s", path);
+    return p;
 }

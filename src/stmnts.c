@@ -3,6 +3,8 @@
 #include "include/strb.h"
 #include "include/types.h"
 #include "include/utils.h"
+#include "include/module.h"
+#include <stdio.h>
 
 Stmnt stmnt_none(void) {
     return (Stmnt){
@@ -175,6 +177,14 @@ Stmnt stmnt_metadata(Metadata v) {
     };
 }
 
+Stmnt stmnt_import(Import v, Cursor cursor) {
+    return (Stmnt){
+        .kind = SkImport,
+        .import = v,
+        .cursor = cursor,
+    };
+}
+
 strb stmnt_stringify(Stmnt stmnt) {
     strb ret = NULL;
 
@@ -201,6 +211,14 @@ strb stmnt_stringify(Stmnt stmnt) {
         case SkBlock:
             for (size_t i = 0; i < arrlenu(stmnt.block); i++) {
                 strb line = stmnt_stringify(stmnt.block[i]);
+                strbprintfln(&ret, "  %s", line);
+                strbfree(line);
+            }
+            break;
+        case SkImport:
+            strbprintfln(&ret, "Import %s", stmnt.import.module->path);
+            for (size_t i = 0; i < arrlenu(stmnt.import.module->ast); i++) {
+                strb line = stmnt_stringify(stmnt.import.module->ast[i]);
                 strbprintfln(&ret, "  %s", line);
                 strbfree(line);
             }

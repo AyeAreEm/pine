@@ -99,5 +99,10 @@ Arr(char *) files_in_folder(const char *foldername, const char *extension);
 
 // return allocated string, needs to be freed
 char *get_cwd();
-char *strip_path(char *path);
+
+// returns filename
+char *strip_path(const char *path);
+
+// returns allocated path, needs to be freed
+char *strip_filename(const char *path);
 #endif // UTILS_H

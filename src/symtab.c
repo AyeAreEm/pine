@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "include/utils.h"
 #include "include/sema.h"
 
@@ -39,7 +40,7 @@ void symtab_push(Sema *sema, const char *key, Stmnt value) {
     for (size_t i = 0; i < arrlenu(SEMA_CURRENT_MODULE.symtab.keys[SEMA_CURRENT_MODULE.symtab.cur_scope]); i++) {
         if (streq(key, SEMA_CURRENT_MODULE.symtab.keys[SEMA_CURRENT_MODULE.symtab.cur_scope][i])) {
             Cursor cursor = SEMA_CURRENT_MODULE.symtab.stmnts[SEMA_CURRENT_MODULE.symtab.cur_scope][i].cursor;
-            elog(sema, value.cursor, "redeclaration of \"%s\" from %zu:%zu", key, cursor.row, cursor.col);
+            elog(sema, value.cursor, "redeclaration of \"%s\" from %s:%d:%d", key, sema->filename, cursor.row, cursor.col);
             return;
         }
     }

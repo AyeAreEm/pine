@@ -4,6 +4,7 @@
 #include "include/stmnts.h"
 #include "include/compiler.h"
 #include "include/cli.h"
+#include "include/strb.h"
 #include "include/utils.h"
 #include "include/lexer.h"
 #include "include/parser.h"
@@ -17,7 +18,8 @@ Compiler compiler_init(Cli cli) {
         .options = (CompilerOptions){
             .output = "",
             .optimize = OptDebug,
-        }
+        },
+        .path = NULL,
     };
 }
 
@@ -68,12 +70,38 @@ static void compiler_invoke_cc(Compiler *compiler) {
     strbfree(com);
 }
 
+Module *modules_find(Arr(Module) modules, const char *path) {
+    if (modules == NULL) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < arrlenu(modules); i++) {
+        if (streq(path, modules[i].path)) {
+            return &modules[i];
+        }
+    }
+
+    return NULL;
+}
+
 void compiler_import(Compiler *compiler, const char *path) {
-    Arr(char*) files = files_in_folder(path, ".pine");
+    if (modules_find(compiler->modules, path) != NULL) {
+        return;
+    }
+
+    strb previous_path = compiler->path;
+#if defined(_WIN32) || defined(__MINGW32__)
+    strb new_path = NULL; strbprintf(&new_path, "%s\\%s\\", previous_path, path);
+#else
+    strb new_path = NULL; strbprintf(&new_path, "%s/%s", previous_path, path);
+#endif
+    compiler->path = new_path;
+
+    Arr(char*) files = files_in_folder(compiler->path, ".pine");
     Arr(Stmnt) ast = NULL;
 
     if (files == NULL) {
-        comp_elog("could not import \"%s\"... ensure it is a folder", path);
+        comp_elog("could not import \"%s\"... ensure it is a folder", compiler->path);
     }
 
     for (size_t i = 0; i < arrlenu(files); i++) {
@@ -88,6 +116,8 @@ void compiler_import(Compiler *compiler, const char *path) {
 
         Parser parser = parser_init(lex.tokens, files[i]);
         parser_import_pass(compiler, parser);
+        parser.modules = compiler->modules;
+
         arrpush(ast, stmnt_metadata((Metadata){.kind = MkFilename, .data = files[i]}));
         for (Stmnt stmnt = parser_parse(&parser); stmnt.kind != SkNone; stmnt = parser_parse(&parser)) {
             arrpush(ast, stmnt);
@@ -98,11 +128,15 @@ void compiler_import(Compiler *compiler, const char *path) {
         }
     }
 
-    Module module = module_init(streq(path, ".") ? "root" : path, ast);
+    strb p = NULL; strbprintf(&p, "%s", compiler->path);
+    Module module = module_init(p, ast, arrlenu(compiler->modules));
     arrpush(compiler->modules, module);
+    strbfree(new_path);
+    compiler->path = previous_path;
 }
 
 void compiler_build(Compiler *compiler) {
+    strbprintf(&compiler->path, ".");
     compiler_import(compiler, compiler->cli.rootfolder);
 
     Sema sema = sema_init(compiler->modules);
@@ -112,7 +146,7 @@ void compiler_build(Compiler *compiler) {
         exit(1);
     }
 
-    Gen gen = gen_init(sema.modules[0].ast, sema.modules[0].dgraph, compiler->cli.rootfolder);
+    Gen gen = gen_init(sema.modules);
     gen_generate(&gen);
 
     write_entire_file("output.h", gen.defs);

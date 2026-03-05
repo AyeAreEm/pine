@@ -33,6 +33,7 @@ typedef struct Sema {
 Sema sema_init(Arr(Module) modules);
 Type *resolve_expr_type(Sema *sema, Expr *expr);
 void sema_analyse(Sema *sema);
+void sema_module(Sema *sema, Module *module);
 void sema_extern(Sema *sema, Stmnt *stmnt);
 void sema_defer(Sema *sema, Stmnt *stmnt);
 void sema_fn_decl(Sema *sema, Stmnt *stmnt);

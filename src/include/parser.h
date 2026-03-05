@@ -20,6 +20,7 @@ typedef struct Parser {
     Cursor cursor;
 
     Arr(Token) tokens;
+    Arr(Module) modules;
 } Parser;
 
 Parser parser_init(Arr(Token) tokens, const char *filename);

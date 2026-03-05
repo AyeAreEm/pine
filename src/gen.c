@@ -34,23 +34,25 @@ void mastrfree(MaybeAllocStr s) {
     if (s.alloced) strbfree(s.str);
 }
 
-Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename) {
+Gen gen_init(Arr(Module) modules) {
     return (Gen){
-        .ast = ast,
         .code = NULL,
         .defs = NULL,
+
+        .def_loc = 0,
+        .code_loc = 0,
+
+        .in_defs = false,
 
         .indent = 0,
         .defers = NULL,
         
-        .in_defs = false,
-        .dgraph = dgraph,
-        .def_loc = 0,
+        .modules = modules,
+        .module_idx = 0,
 
-        .code_loc = 0,
         .generated_typedefs = NULL,
 
-        .filename = filename,
+        .filename = "",
     };
 }
 
@@ -733,7 +735,7 @@ MaybeAllocStr _gen_expr(Gen *gen, Expr expr, bool for_identifier) {
             else if (expr.fieldacc.accessing->type.kind == TkPtr) {
                 strbprintf(&ret, "%s->%s", subexpr.str, field.str);
             } else if (expr.fieldacc.accessing->type.kind == TkTypeDef) {
-                Stmnt stmnt = ast_find_decl(gen->ast, expr.fieldacc.accessing->type.typedeff);
+                Stmnt stmnt = ast_find_decl(GEN_CURRENT_MODULE.ast, expr.fieldacc.accessing->type.typedeff);
 
                 if (stmnt.kind == SkStructDecl) {
                     strbprintf(&ret, "%s.%s", subexpr.str, field.str);
@@ -979,7 +981,7 @@ void gen_decl_generic(Gen *gen, Type type) {
 
             strb typedeff = NULL;
 
-            Stmnt stmnt = ast_find_decl(gen->ast, type.typedeff);
+            Stmnt stmnt = ast_find_decl(GEN_CURRENT_MODULE.ast, type.typedeff);
             if (stmnt.kind == SkStructDecl) {
                 strbprintfln(&typedeff, "typedef struct %s %s;", type.typedeff, type.typedeff);
             } else if (stmnt.kind == SkEnumDecl) {
@@ -1404,6 +1406,9 @@ void gen_stmnt(Gen *gen, Stmnt *stmnt) {
         case SkNone:
             break;
         case SkMetadata:
+            if (stmnt->metadata.kind == MkFilename) {
+                gen->filename = stmnt->metadata.data;
+            }
             break;
         case SkDirective:
             break;
@@ -1645,13 +1650,13 @@ void gen_enum_decl(Gen *gen, Stmnt stmnt) {
 void gen_resolve_def(Gen *gen, Dnode node) {
     for (size_t i = 0; i < arrlenu(node.children); i++) {
         size_t index = 0;
-        for (; index < arrlenu(gen->dgraph.names); index++) {
-            if (streq(node.children[i], gen->dgraph.names[index])) {
+        for (; index < arrlenu(GEN_CURRENT_MODULE.dgraph.names); index++) {
+            if (streq(node.children[i], GEN_CURRENT_MODULE.dgraph.names[index])) {
                 break;
             }
         }
 
-        gen_resolve_def(gen, gen->dgraph.children[index]);
+        gen_resolve_def(gen, GEN_CURRENT_MODULE.dgraph.children[index]);
     }
 
     Stmnt stmnt = node.us;
@@ -1663,8 +1668,8 @@ void gen_resolve_def(Gen *gen, Dnode node) {
 }
 
 void gen_resolve_defs(Gen *gen) {
-    for (size_t i = 0; i < arrlenu(gen->dgraph.children); i++) {
-        gen_resolve_def(gen, gen->dgraph.children[i]);
+    for (size_t i = 0; i < arrlenu(GEN_CURRENT_MODULE.dgraph.children); i++) {
+        gen_resolve_def(gen, GEN_CURRENT_MODULE.dgraph.children[i]);
     }
 }
 
@@ -1674,32 +1679,36 @@ void gen_generate(Gen *gen) {
     gen->def_loc = builtin_defs_len;
     gen->code_loc = strlen("#include \"output.h\"\n");
 
-    for (size_t i = 0; i < arrlenu(gen->ast); i++) {
-        Stmnt stmnt = gen->ast[i];
-        switch (stmnt.kind) {
-            case SkDirective:
-                break;
-            case SkExtern:
-                gen_extern(gen, stmnt);
-                break;
-            case SkFnDecl:
-                gen_fn_decl(gen, stmnt, false);
-                break;
-            case SkStructDecl:
-            case SkEnumDecl:
-                // do nothing, defs will be resolved later
-                break;
-            case SkVarDecl:
-                gen_var_decl(gen, stmnt);
-                break;
-            case SkConstDecl:
-                gen_const_decl(gen, stmnt);
-                break;
-            case SkVarReassign:
-                gen_var_reassign(gen, stmnt);
-                break;
-            default:
-                break;
+    for (size_t i = 0; i < arrlenu(gen->modules); i++) {
+        gen->module_idx = i;
+
+        for (size_t j = 0; j < arrlenu(GEN_CURRENT_MODULE.ast); j++) {
+            Stmnt stmnt = GEN_CURRENT_MODULE.ast[j];
+            switch (stmnt.kind) {
+                case SkDirective:
+                    break;
+                case SkExtern:
+                    gen_extern(gen, stmnt);
+                    break;
+                case SkFnDecl:
+                    gen_fn_decl(gen, stmnt, false);
+                    break;
+                case SkStructDecl:
+                case SkEnumDecl:
+                    // do nothing, defs will be resolved later
+                    break;
+                case SkVarDecl:
+                    gen_var_decl(gen, stmnt);
+                    break;
+                case SkConstDecl:
+                    gen_const_decl(gen, stmnt);
+                    break;
+                case SkVarReassign:
+                    gen_var_reassign(gen, stmnt);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 

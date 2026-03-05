@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include "include/eval.h"
 #include "include/exprs.h"
@@ -17,7 +18,7 @@
 
 void elog(Sema *sema, Cursor cursor, const char *msg, ...) {
     sema->error_count++;
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
+    eprintf("%s:%d:%d " TERM_RED "error" TERM_END ": ", sema->filename, cursor.row, cursor.col);
 
     va_list args;
     va_start(args, msg);
@@ -60,6 +61,13 @@ Stmnt ast_find_decl(Arr(Stmnt) ast, const char *key) {
                     return *ast[i].externf;
                 }
                 break;
+            case SkImport: {
+                Stmnt decl = ast_find_decl(ast[i].import.module->ast, key);
+                if (decl.kind != SkNone) {
+                    return decl;
+                }
+                break;
+            }
             default:
                 if (decl_has_name(ast[i], key)) {
                     return ast[i];
@@ -1396,11 +1404,29 @@ void sema_metadata(Sema *sema, Stmnt *stmnt) {
     }
 }
 
+void sema_import(Sema *sema, Stmnt *stmnt) {
+    assert(stmnt->kind == SkImport);
+
+    // safe to assume import.module is not NULL
+    if (stmnt->import.module->analysed) {
+        return;
+    }
+
+    Sema sema_new = sema_init(sema->modules);
+    sema_module(&sema_new, stmnt->import.module);
+    sema->error_count = sema_new.error_count;
+
+    stmnt->import.module->analysed = true;
+}
+
 void sema_block(Sema *sema, Arr(Stmnt) body) {
     for (size_t i = 0; i < arrlenu(body); i++) {
         Stmnt *stmnt = &body[i];
         switch (stmnt->kind) {
             case SkNone:
+                break;
+            case SkImport:
+                sema_import(sema, stmnt);
                 break;
             case SkMetadata:
                 sema_metadata(sema, stmnt);
@@ -1569,6 +1595,10 @@ void sema_defer(Sema *sema, Stmnt *stmnt) {
         case SkMetadata:
             assert("tried to defer metadata, somthing went wrong...");
             break;
+        case SkImport:
+            elog(sema, stmnt->cursor, "cannot defer an import");
+            break;
+            break;
         case SkVarReassign:
             sema_var_reassign(sema, stmnt->defer);
             break;
@@ -1630,6 +1660,9 @@ void sema_extern(Sema *sema, Stmnt *stmnt) {
             break;
         case SkMetadata:
             assert("tried to extern metadata, something went wrong");
+            break;
+        case SkImport:
+            elog(sema, stmnt->externf->cursor, "illegal use of import, cannot be used with extern");
             break;
         case SkFnDecl:
             sema_fn_decl(sema, stmnt->externf);
@@ -1848,76 +1881,90 @@ void sema_enum_decl(Sema *sema, Stmnt *stmnt) {
     symtab_pop_scope(sema);
 }
 
+void sema_module(Sema *sema, Module *module) {
+    sema->module_idx = module->index;
+
+    for (size_t i = 0; i < arrlenu(module->ast); i++) {
+        Stmnt *stmnt = &module->ast[i];
+        switch (stmnt->kind) {
+        case SkNone:
+            break;
+        case SkImport:
+            sema_import(sema, stmnt);
+            break;
+        case SkMetadata:
+            sema_metadata(sema, stmnt);
+            break;
+        case SkDirective:
+            sema_directive(sema, stmnt);
+            break;
+        case SkExtern:
+            sema_extern(sema, stmnt);
+            break;
+        case SkFnDecl:
+            sema_fn_decl(sema, stmnt);
+            break;
+        case SkStructDecl:
+            sema_struct_decl(sema, stmnt);
+            break;
+        case SkEnumDecl:
+            sema_enum_decl(sema, stmnt);
+            break;
+        case SkVarDecl:
+            sema_var_decl(sema, stmnt);
+            break;
+        case SkVarReassign:
+            sema_var_reassign(sema, stmnt);
+            break;
+        case SkConstDecl:
+            sema_const_decl(sema, stmnt);
+            break;
+        case SkBlock:
+            elog(sema, stmnt->cursor, "illegal use of scope block, not inside a function");
+            break;
+        case SkReturn:
+            elog(sema, stmnt->cursor, "illegal use of return, not inside a function");
+            break;
+        case SkDefer:
+            elog(sema, stmnt->cursor, "illegal use of defer, not inside a function");
+            break;
+        case SkContinue:
+            elog(sema, stmnt->cursor, "illegal use of continue, not inside a loop");
+            break;
+        case SkBreak:
+            elog(sema, stmnt->cursor, "illegal use of break, not inside a loop");
+            break;
+        case SkFall:
+            elog(sema, stmnt->cursor, "illegal use of fall, not inside case");
+            break;
+        case SkFnCall:
+            elog(sema, stmnt->cursor, "illegal use of function call, not inside a function");
+            break;
+        case SkSwitch:
+            elog(sema, stmnt->cursor, "illegal use of switch statement, not inside a function");
+            break;
+        case SkCase:
+            elog(sema, stmnt->cursor, "illegal use of case statement, not inside a function");
+            break;
+        case SkIf:
+            elog(sema, stmnt->cursor, "illegal use of if statement, not inside a function");
+            break;
+        case SkFor:
+        case SkForEach:
+            elog(sema, stmnt->cursor, "illegal use of for loop, not inside a function");
+            break;
+        }
+    }
+
+    module->analysed = true;
+}
+
 void sema_analyse(Sema *sema) {
     for (size_t i = 0; i < arrlenu(sema->modules); i++) {
-        sema->module_idx = i;
-        for (size_t j = 0; j < arrlenu(sema->modules[i].ast); j++) {
-            Stmnt *stmnt = &sema->modules[i].ast[j];
-            switch (stmnt->kind) {
-            case SkNone:
-                break;
-            case SkMetadata:
-                sema_metadata(sema, stmnt);
-                break;
-            case SkDirective:
-                sema_directive(sema, stmnt);
-                break;
-            case SkExtern:
-                sema_extern(sema, stmnt);
-                break;
-            case SkFnDecl:
-                sema_fn_decl(sema, stmnt);
-                break;
-            case SkStructDecl:
-                sema_struct_decl(sema, stmnt);
-                break;
-            case SkEnumDecl:
-                sema_enum_decl(sema, stmnt);
-                break;
-            case SkVarDecl:
-                sema_var_decl(sema, stmnt);
-                break;
-            case SkVarReassign:
-                sema_var_reassign(sema, stmnt);
-                break;
-            case SkConstDecl:
-                sema_const_decl(sema, stmnt);
-                break;
-            case SkBlock:
-                elog(sema, stmnt->cursor, "illegal use of scope block, not inside a function");
-                break;
-            case SkReturn:
-                elog(sema, stmnt->cursor, "illegal use of return, not inside a function");
-                break;
-            case SkDefer:
-                elog(sema, stmnt->cursor, "illegal use of defer, not inside a function");
-                break;
-            case SkContinue:
-                elog(sema, stmnt->cursor, "illegal use of continue, not inside a loop");
-                break;
-            case SkBreak:
-                elog(sema, stmnt->cursor, "illegal use of break, not inside a loop");
-                break;
-            case SkFall:
-                elog(sema, stmnt->cursor, "illegal use of fall, not inside case");
-                break;
-            case SkFnCall:
-                elog(sema, stmnt->cursor, "illegal use of function call, not inside a function");
-                break;
-            case SkSwitch:
-                elog(sema, stmnt->cursor, "illegal use of switch statement, not inside a function");
-                break;
-            case SkCase:
-                elog(sema, stmnt->cursor, "illegal use of case statement, not inside a function");
-                break;
-            case SkIf:
-                elog(sema, stmnt->cursor, "illegal use of if statement, not inside a function");
-                break;
-            case SkFor:
-            case SkForEach:
-                elog(sema, stmnt->cursor, "illegal use of for loop, not inside a function");
-                break;
-            }
+        if (sema->modules[i].analysed) {
+            continue;
         }
+
+        sema_module(sema, &sema->modules[i]);
     }
 }

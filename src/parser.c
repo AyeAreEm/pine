@@ -18,7 +18,7 @@
 
 // NOTE: commented out as it is not being used... may be useful in the future
 // static void warn(Parser *parser, size_t i, const char *msg, ...) {
-//     eprintf("%s:%lu:%lu " TERM_YELLOW "warning" TERM_END ": ", parser->filename, parser->cursors[i].row, parser->cursors[i].col);
+//     eprintf("%s:%d:%d " TERM_YELLOW "warning" TERM_END ": ", parser->filename, parser->cursors[i].row, parser->cursors[i].col);
 //
 //     va_list args;
 //     va_start(args, msg);
@@ -30,7 +30,7 @@
 
 static void elog(Parser *parser, Cursor cursor, const char *msg, ...) {
     parser->error_count++;
-    eprintf("%s:%lu:%lu " TERM_RED "error" TERM_END ": ", parser->filename, cursor.row, cursor.col);
+    eprintf("%s:%d:%d " TERM_RED "error" TERM_END ": ", parser->filename, cursor.row, cursor.col);
 
     va_list args;
     va_start(args, msg);
@@ -298,6 +298,7 @@ Expr parse_end_literal(Parser *parser, Type type) {
         lit.literal.exprs = exprs;
     }
 
+
     expect(parser, TokRightCurl);
     return lit;
 }
@@ -556,6 +557,7 @@ Expr parse_end_fn_call(Parser *parser, Expr ident) {
     FnCall fncall = {
         .name = name,
     };
+
     if (is_stmnts) {
         fncall.arg_kind = LitkVars;
         fncall.args.vars = stmnts;
@@ -1839,10 +1841,9 @@ condition: {}
     }, cursor);
 }
 
-Stmnt parse_directive(Parser *parser) {
-    Token tok = next(parser);
-
+Stmnt parse_directive(Parser *parser, Token tok) {
     assert(tok.kind == TokDirective);
+
     Directive directive = parser_get_directive(parser, tok.string);
     Stmnt d = stmnt_directive(directive, parser->cursor);
 
@@ -1902,7 +1903,23 @@ Stmnt parser_parse(Parser *parser) {
             return stmnt_block(parse_block_curls(parser), cursor);
         } break;
         case TokDirective:
-            return parse_directive(parser);
+            next(parser);
+            Stmnt stmnt = parse_directive(parser, tok);
+            if (stmnt.directive.kind == DkImport) {
+                char *folder = strip_filename(parser->filename);
+                strb path = NULL; strbprintf(&path, "%s/%s", folder, stmnt.directive.str);
+                free(folder);
+
+                Module *module = modules_find(parser->modules, path);
+                if (module == NULL) {
+                    elog(parser, parser->cursor, "cannot find module %s with path %s", stmnt.directive.str, path);
+                }
+
+                return stmnt_import((Import){
+                    .module = module,
+                }, stmnt.cursor);
+            }
+            return stmnt;
         default:
             next(parser);
             elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
@@ -1923,7 +1940,7 @@ void parser_import_pass(Compiler *compiler, Parser parser) {
     for (Token tok = next(&parser); tok.kind != TokNone; tok = next(&parser)) {
         if (tok.kind != TokDirective) continue;
 
-        Stmnt stmnt = parse_directive(&parser);
+        Stmnt stmnt = parse_directive(&parser, tok);
         if (stmnt.directive.kind != DkImport) continue;
 
         compiler_import(compiler, stmnt.directive.str);

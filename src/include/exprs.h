@@ -7,6 +7,7 @@
 #include "types.h"
 
 typedef struct Stmnt Stmnt;
+typedef struct Module Module;
 
 typedef enum ExprKind {
     EkNone,
@@ -34,8 +35,9 @@ typedef enum ExprKind {
     EkFieldAccess,
     EkArrayIndex,
     EkArraySlice,
-
     EkNull,
+
+    EkImport,
 } ExprKind;
 
 typedef enum LitKind {
@@ -131,6 +133,10 @@ typedef struct Unop {
     UnopKind kind;
     Expr *val;
 } Unop;
+
+typedef struct Import {
+    Module *module; // NOTE: can be null
+} Import;
 
 typedef struct Expr {
     ExprKind kind;

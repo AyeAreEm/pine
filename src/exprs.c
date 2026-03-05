@@ -2,6 +2,8 @@
 #include "include/strb.h"
 #include "include/types.h"
 #include "include/stmnts.h"
+#include "include/utils.h"
+#include <stdio.h>
 
 Expr expr_none(void) {
     return (Expr){.kind = EkNone};
@@ -263,7 +265,6 @@ strb expr_stringify(Expr expr) {
             break;
         case EkFnCall: {
             strb name = expr_stringify(*expr.fncall.name);
-            strbprintf(&ret, "%s(", name);
             if (expr.literal.kind == LitkExprs) {
                 for (size_t i = 0; i < arrlenu(expr.literal.exprs); i++) {
                     strb e = expr_stringify(expr.literal.exprs[i]);
@@ -279,6 +280,11 @@ strb expr_stringify(Expr expr) {
             }
             strbprintf(&ret, ")");
             strbfree(name);
+            break;
+        }
+        case EkImport: {
+            // TODO: do this properly
+            strbprintf(&ret, "Import");
             break;
         }
         case EkUnop: {

@@ -29,6 +29,7 @@ typedef enum StmntKind {
     SkExtern,
     SkDirective,
     SkDefer,
+    SkImport,
     SkMetadata,
 } StmntKind;
 
@@ -135,6 +136,7 @@ typedef struct Stmnt {
     Cursor cursor;
 
     union {
+        Import import;
         FnDecl fndecl;
         FnCall fncall;
         StructDecl structdecl;
@@ -186,6 +188,8 @@ Stmnt stmnt_block(Arr(Stmnt) v, Cursor cursor);
 
 Stmnt stmnt_directive(Directive v, Cursor cursor);
 Stmnt stmnt_fncall(FnCall v, Cursor cursor);
+
+Stmnt stmnt_import(Import v, Cursor cursor);
 
 strb stmnt_stringify(Stmnt stmnt);
 void print_stmnts(Arr(Stmnt) stmnts);

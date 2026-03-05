@@ -27,9 +27,10 @@ typedef struct Gen {
 
     bool in_defs;
 
-    Dgraph dgraph;
+    Arr(Module) modules;
+    size_t module_idx;
+
     Arr(Defer) defers;
-    Arr(Stmnt) ast;
     Arr(const char*) generated_typedefs;
     const char *filename;
 } Gen;
@@ -51,9 +52,11 @@ MaybeAllocStr gen_type(Gen *gen, Type type);
 void gen_typename(Gen *gen, Type *types, size_t types_len, strb *);
 void gen_stmnt(Gen *gen, Stmnt *stmnt);
 void gen_block(Gen *gen, Arr(Stmnt) stmnt);
-Gen gen_init(Arr(Stmnt) ast, Dgraph dgraph, const char *filename);
+Gen gen_init(Arr(Module) modules);
 
 #define gen_expr(gen, expr) _gen_expr((gen), (expr), false)
 #define gen_expr_for_identifier(gen, expr) _gen_expr((gen), (expr), true)
+
+#define GEN_CURRENT_MODULE gen->modules[gen->module_idx]
 
 #endif // GEN_H
