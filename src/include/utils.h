@@ -49,7 +49,7 @@ void eprintf(const char *fmt, ...);
 void eprintfln(const char *fmt, ...);
 
 void debug(const char *msg, ...);
-_Noreturn void comp_elog(const char *msg, ...);
+_Noreturn void panic(const char *msg, ...);
 
 // returns false if failed
 bool read_entire_file(const char *filename, char **buf);

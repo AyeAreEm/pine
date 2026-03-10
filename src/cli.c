@@ -20,7 +20,7 @@ static Cli cli_init(char ***argv, int *argc) {
 
 // static char *cli_args_peek(Cli *cli) {
 //     if (cli->argc == 0) {
-//         comp_elog("expected another argument");
+//         panic("expected another argument");
 //     }
 //
 //     return cli->argv[0];
@@ -28,7 +28,7 @@ static Cli cli_init(char ***argv, int *argc) {
 
 static char *cli_args_next(Cli *cli) {
     if (cli->argc == 0) {
-        comp_elog("expected another argument");
+        panic("expected another argument");
     }
 
     char *arg = cli->argv[0];
@@ -46,25 +46,25 @@ static bool cli_is_command(const char *arg) {
 
 static void cli_parse_help(Cli *cli) {
     if (cli->help) {
-        comp_elog("unexpected help, help option already set");
+        panic("unexpected help, help option already set");
     }
     cli->help = true;
 
     if (cli->argc != 0) {
         char *arg = cli_args_next(cli);
-        comp_elog("unexpected %s option after help", arg);
+        panic("unexpected %s option after help", arg);
     }
 }
 
 static void cli_parse_build(Cli *cli) {
     if (cli->command != CommandNone) {
-        comp_elog("unexpected build, %s option already set", cli_commands[cli->command]);
+        panic("unexpected build, %s option already set", cli_commands[cli->command]);
     }
 
     cli->command = CommandBuild;
     char *arg = cli_args_next(cli);
     if (cli_is_command(arg)) {
-        comp_elog("unexpected %s, expected folder or help", arg);
+        panic("unexpected %s, expected folder or help", arg);
     }
 
     cli->rootfolder = arg;
@@ -72,13 +72,13 @@ static void cli_parse_build(Cli *cli) {
 
 static void cli_parse_run(Cli *cli) {
     if (cli->command != CommandNone) {
-        comp_elog("unexpected run, %s option already set", cli_commands[cli->command]);
+        panic("unexpected run, %s option already set", cli_commands[cli->command]);
     }
 
     cli->command = CommandRun;
     char *arg = cli_args_next(cli);
     if (cli_is_command(arg)) {
-        comp_elog("unexpected %s, expected folder or help", arg);
+        panic("unexpected %s, expected folder or help", arg);
     }
 
     cli->rootfolder = arg;
@@ -142,7 +142,7 @@ Cli cli_parse(char **argv, int argc) {
             cli.pass_to_prog = true;
             break;
         } else {
-            comp_elog("unknown \"%s\"", arg);
+            panic("unknown \"%s\"", arg);
         }
     }
 

@@ -295,7 +295,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, Cursor curso
                 elog(sema, cursor, "%s does not have field \"%s\" ", t, fieldname);
             } else {
                 strb t = string_from_type(type);
-                comp_elog("get_field unreachable type: %s", t);
+                panic("get_field unreachable type: %s", t);
                 // strbfree(t);
             }
         } break;

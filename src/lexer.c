@@ -223,7 +223,7 @@ static void resolve_buffer_push_token(Lexer *lex, Token tok) {
 //     }
 //
 //     // TODO: support \x, etc
-//     comp_elog("escape character %s not implemented yet", s);
+//     panic("escape character %s not implemented yet", s);
 // }
 
 Lexer lexer_init(void) {

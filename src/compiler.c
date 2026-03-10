@@ -55,11 +55,11 @@ static void compiler_invoke_cc(Compiler *compiler) {
     // debug("%s", com);
     FILE *fd = popen(com, "r");
     if (fd == NULL) {
-        comp_elog("failed to compile");
+        panic("failed to compile");
     }
 
     if (pclose(fd) != 0) {
-        comp_elog("failed to compile");
+        panic("failed to compile");
     }
 
     if (!compiler->cli.emitc) {
@@ -101,14 +101,14 @@ void compiler_import(Compiler *compiler, const char *path) {
     Arr(Stmnt) ast = NULL;
 
     if (files == NULL) {
-        comp_elog("could not import \"%s\"... ensure it is a folder", compiler->path);
+        panic("could not import \"%s\"... ensure it is a folder", compiler->path);
     }
 
     for (size_t i = 0; i < arrlenu(files); i++) {
         char *content = {0};
         bool content_ok = read_entire_file(files[i], &content);
         if (!content_ok) {
-            comp_elog("failed to read %s", files[i]);
+            panic("failed to read %s", files[i]);
         }
 
         Lexer lex = lexer(content);
@@ -180,7 +180,7 @@ void compiler_run(Compiler *compiler) {
 
     FILE *fd = popen(com, "r");
     if (fd == NULL) {
-        comp_elog("failed to run `%s`", com);
+        panic("failed to run `%s`", com);
     }
 
     char buf[1024];

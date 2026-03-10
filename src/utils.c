@@ -122,7 +122,7 @@ void debug(const char *msg, ...) {
     va_end(args);
 }
 
-_Noreturn void comp_elog(const char *msg, ...) {
+_Noreturn void panic(const char *msg, ...) {
     eprintf(TERM_RED "error" TERM_END ": ");
 
     va_list args;
@@ -361,7 +361,7 @@ char *strtrim(char *str) {
 void *ealloc(size_t size) {
     void *mem = malloc(size);
     if (!mem) {
-        comp_elog("failed to allocate memory");
+        panic("failed to allocate memory");
     }
     return mem;
 }
@@ -369,7 +369,7 @@ void *ealloc(size_t size) {
 void *erealloc(void *mem, size_t size) {
     mem = realloc(mem, size);
     if (!mem) {
-        comp_elog("failed to reallocate memory");
+        panic("failed to reallocate memory");
     }
     return mem;
 }
@@ -392,7 +392,7 @@ const char *get_c_compiler(void) {
         return "clang";
     }
 
-    comp_elog("gcc or clang not detected, please ensure you have one of these compilers");
+    panic("gcc or clang not detected, please ensure you have one of these compilers");
     return "";
 }
 

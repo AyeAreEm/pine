@@ -151,7 +151,7 @@ uint64_t eval_unop(Sema *sema, Expr *expr) {
         case UkNegate:
             return -val;
         case UkAddress:
-            comp_elog("cannot take address at compile time");
+            panic("cannot take address at compile time");
             return 0;
     }
 
@@ -178,7 +178,7 @@ uint64_t eval_expr(Sema *sema, Expr *expr) {
         case EkUnop:
             return eval_unop(sema, expr);
         default:
-            comp_elog("not implemented in eval_expr");
+            panic("not implemented in eval_expr");
     }
 
     assert(false);
