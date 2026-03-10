@@ -160,6 +160,8 @@ typedef struct Expr {
         FieldAccess fieldacc;
         ArrayIndex arrayidx;
         ArraySlice arrayslice;
+
+        Import import;
     };
 } Expr;
 
@@ -184,6 +186,8 @@ Expr expr_range(RangeLit v, Type t, Cursor cursor);
 Expr expr_fieldaccess(FieldAccess v, Type t, Cursor cursor);
 Expr expr_arrayindex(ArrayIndex v, Type t, Cursor cursor);
 Expr expr_arrayslice(ArraySlice v, Type t, Cursor cursor);
+
+Expr expr_import(Import v, Cursor cursor);
 
 strb expr_stringify(Expr expr);
 

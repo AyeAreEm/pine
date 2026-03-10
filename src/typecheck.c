@@ -112,6 +112,8 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
             return false;
         case TkPoison:
             return false;
+        case TkModule:
+            return false;
         case TkBool:
             return rhs->kind == TkBool;
         case TkChar:
@@ -134,7 +136,7 @@ bool tc_equals(Sema *sema, Type lhs, Type *rhs) {
         case TkTypeId:
             return rhs->kind == TkTypeId;
         case TkTypeDef:
-            symtab_find(sema, lhs.typedeff, lhs.cursor);
+            symtab_find(sema, expr_ident(lhs.typedeff, type_none(), lhs.cursor), lhs.cursor);
             return rhs->kind == TkTypeDef && streq(lhs.typedeff, rhs->typedeff);
         case TkOption:
             if (rhs->kind == TkOption) {
@@ -424,7 +426,7 @@ void tc_infer(Sema *sema, Type *lhs, Expr *expr) {
     Type default_type = tc_default_untyped_type(*exprtype);
 
     if (exprtype->kind == TkTypeDef) {
-        symtab_find(sema, exprtype->typedeff, expr->cursor);
+        symtab_find(sema, expr_ident(exprtype->typedeff, type_none(), expr->cursor), expr->cursor);
     }
 
     if (default_type.kind != TkNone) {
@@ -437,6 +439,11 @@ void tc_infer(Sema *sema, Type *lhs, Expr *expr) {
 void tc_var_decl(Sema *sema, Stmnt *stmnt) {
     assert(stmnt->kind == SkVarDecl);
     VarDecl *vardecl = &stmnt->vardecl;
+
+    if (vardecl->type.kind == TkModule || vardecl->value.kind == EkImport) {
+        elog(sema, stmnt->cursor, "cannot import module as a variable, must be constant");
+        return;
+    }
 
     if (vardecl->value.kind == EkNone) {
         // <ident>: <type>;
@@ -471,6 +478,7 @@ void tc_var_decl(Sema *sema, Stmnt *stmnt) {
 void tc_make_constant(Type *type) {
     switch (type->kind) {
         case TkPoison:
+        case TkModule:
             break;
         case TkI8:
         case TkI16:
@@ -801,8 +809,8 @@ bool tc_can_compare_equality(Sema *sema, Type lhs, Type rhs) {
                 return false;
             }
 
-            Stmnt lhs_stmnt = symtab_find(sema, lhs.typedeff, lhs.cursor);
-            Stmnt rhs_stmnt = symtab_find(sema, rhs.typedeff, rhs.cursor);
+            Stmnt lhs_stmnt = symtab_find(sema, expr_ident(lhs.typedeff, type_none(), lhs.cursor), lhs.cursor);
+            Stmnt rhs_stmnt = symtab_find(sema, expr_ident(rhs.typedeff, type_none(), rhs.cursor), rhs.cursor);
             if (!(lhs_stmnt.kind == SkEnumDecl && rhs_stmnt.kind == SkEnumDecl)) {
                 return false;
             }

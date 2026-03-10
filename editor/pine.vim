@@ -14,17 +14,19 @@ syn keyword pineBooleans true false
 syn keyword pineStatements return break continue defer extern
 syn keyword pineWordOperators sizeof cast
 
-syntax match pineOperators /\v[|$+%-;:=<>?!&^()[\]{}*\/]/
+syn match pineOperators /\v[|$+%-;:=<>?!&^()[\]{}*\/]/
 
-syntax region pineString start=/\v"/ skip=/\v\\./ end=/\v"/ contains=pineEscapes
-syntax region pineChar start=/\v'/ skip=/\v\\./ end=/\v'/ contains=pineEscapes
-syntax match pineNumber /\<[0-9]\+\>/
+syn region pineString start=/\v"/ skip=/\v\\./ end=/\v"/ contains=pineEscapes
+syn region pineChar start=/\v'/ skip=/\v\\./ end=/\v'/ contains=pineEscapes
+syn match pineNumber /\<[0-9]\+\>/
 
-syntax match pineHex /\<0x[0-9A-Fa-f]\+\>/
-syntax match pineBinary /\<0b[0-1]\+\>/
-syntax match pineOctal /\<0o[0-7]\+\>/
+syn match pineHex /\<0x[0-9A-Fa-f]\+\>/
+syn match pineBinary /\<0b[0-1]\+\>/
+syn match pineOctal /\<0o[0-7]\+\>/
 
-syntax match pineEscapes /\\[nr\"']/
+syn match pineEscapes /\\[nr\"']/
+
+syn match pineDirectives "#\(import\)"
 
 hi link pineTypes Type
 hi link pineFn Function
@@ -44,5 +46,7 @@ hi link pineNumber Number
 hi link pineHex Number
 hi link pineBinary Number
 hi link pineOctal Number
+
+hi link pineDirectives Macro
 
 let b:current_syntax = "pine"

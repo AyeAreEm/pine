@@ -6,6 +6,7 @@
 
 typedef struct Sema Sema;
 typedef struct Stmnt Stmnt;
+typedef struct Expr Expr;
 
 typedef struct SymTab {
     Arr(Arr(Stmnt)) stmnts;
@@ -14,7 +15,7 @@ typedef struct SymTab {
 } SymTab;
 
 SymTab symtab_init(void);
-Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor);
+Stmnt symtab_find(Sema *sema, Expr key, Cursor cursor);
 void symtab_push(Sema *sema, const char *key, Stmnt value);
 void symtab_new_scope(Sema *sema);
 void symtab_pop_scope(Sema *sema);

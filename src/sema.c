@@ -108,7 +108,7 @@ static Type type_of_stmnt(Sema *sema, Stmnt stmnt) {
             return stmnt.fndecl.type;
         case SkFnCall:
             assert(stmnt.fncall.name->kind == EkIdent);
-            Stmnt decl = symtab_find(sema, stmnt.fncall.name->ident, stmnt.cursor);
+            Stmnt decl = symtab_find(sema, *stmnt.fncall.name, stmnt.cursor);
             assert(decl.kind == SkFnDecl);
             return decl.fndecl.type;
         case SkVarDecl:
@@ -181,6 +181,7 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
         case EkArraySlice:
         case EkRangeLit:
         case EkBinop:
+        case EkImport:
             return &expr->type;
         case EkFieldAccess:
             if (expr->fieldacc.deref) {
@@ -192,7 +193,7 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
                 return &expr->type;
             }
 
-            Stmnt decl = symtab_find(sema, expr->ident, expr->cursor);
+            Stmnt decl = symtab_find(sema, *expr, expr->cursor);
             if (decl.kind == SkVarDecl) {
                 expr->type = decl.vardecl.type;
             } else if (decl.kind == SkConstDecl) {
@@ -209,7 +210,7 @@ Type *resolve_expr_type(Sema *sema, Expr *expr) {
                 return &expr->type;
             }
 
-            Stmnt call = symtab_find(sema, expr->fncall.name->ident, expr->cursor);
+            Stmnt call = symtab_find(sema, *expr->fncall.name, expr->cursor);
             expr->type = call.fndecl.type;
             return &expr->type;
         case EkType:
@@ -269,7 +270,7 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, Cursor curso
             elog(sema, cursor, "array does not have field \"%s\"", fieldname);
         } break;
         case TkTypeDef: {
-            Stmnt typedeff = symtab_find(sema, type.typedeff, cursor);
+            Stmnt typedeff = symtab_find(sema, expr_ident(type.typedeff, type_none(), cursor), cursor);
 
             if (typedeff.kind == SkStructDecl) {
                 for (size_t i = 0; i < arrlenu(typedeff.structdecl.fields); i++) {
@@ -298,8 +299,23 @@ static Expr get_field(Sema *sema, Type type, const char *fieldname, Cursor curso
                 // strbfree(t);
             }
         } break;
+        case TkModule: {
+            Stmnt stmnt = ast_find_decl(type.module->ast, fieldname);
+
+            if (stmnt.kind == SkStructDecl || stmnt.kind == SkEnumDecl) {
+                return expr_type((Type){
+                    .typedeff = fieldname,
+                }, cursor);
+            } else if (stmnt.kind == SkConstDecl || stmnt.kind == SkVarDecl) {
+                return expr_ident(fieldname, stmnt.constdecl.type, cursor);
+            } else if (stmnt.kind == SkFnDecl) {
+                return expr_ident(fieldname, stmnt.fndecl.type, cursor);
+            } else {
+                elog(sema, cursor, "module does not have \"%s\" declared", fieldname);
+            }
+        } break;
         default:
-            elog(sema, cursor, "primitive type does not have field \"%s\"", fieldname);
+            elog(sema, cursor, "type does not have field \"%s\"", fieldname);
             break;
     }
 
@@ -516,7 +532,7 @@ void sema_array_literal(Sema *sema, Expr *expr) {
 
 void sema_typedef_literal(Sema *sema, Expr *expr) {
     assert(expr->kind == EkLiteral);
-    Stmnt typedeff = symtab_find(sema, expr->type.typedeff, expr->cursor);
+    Stmnt typedeff = symtab_find(sema, expr_ident(expr->type.typedeff, type_none(), expr->cursor), expr->cursor);
     if (typedeff.kind != SkStructDecl) {
         elog(sema, expr->cursor, "expected literal type to be from a struct");
         return;
@@ -602,7 +618,8 @@ void sema_literal(Sema *sema, Expr *expr) {
 void sema_fn_call(Sema *sema, Expr *expr) {
     assert(expr->kind == EkFnCall);
 
-    Stmnt stmnt = symtab_find(sema, expr->fncall.name->ident, expr->cursor);
+    sema_expr(sema, expr->fncall.name);
+    Stmnt stmnt = symtab_find(sema, *expr->fncall.name, expr->cursor);
     if (stmnt.kind != SkFnDecl) {
         elog(sema, expr->cursor, "expected \"%s\" to be a function", expr->fncall.name->ident);
         return;
@@ -759,7 +776,7 @@ void sema_unop(Sema *sema, Expr *expr) {
             break;
         case UkAddress:
             if (expr->unop.val->kind == EkIdent) {
-                Stmnt stmnt = symtab_find(sema, expr->unop.val->ident, expr->unop.val->cursor);
+                Stmnt stmnt = symtab_find(sema, *expr->unop.val, expr->unop.val->cursor);
                 Type *type = ealloc(sizeof(Type)); *type = type_of_stmnt(sema, stmnt);
 
                 if (type->kind == TkPoison) {
@@ -972,6 +989,8 @@ void sema_expr(Sema *sema, Expr *expr) {
     switch (expr->kind) {
         case EkNone:
             return;
+        case EkImport:
+            return;
         case EkRangeLit:
             sema_range_lit(sema, expr, false);
             return;
@@ -1006,7 +1025,7 @@ void sema_expr(Sema *sema, Expr *expr) {
                 return;
             }
 
-            Stmnt stmnt = symtab_find(sema, expr->ident, expr->cursor);
+            Stmnt stmnt = symtab_find(sema, *expr, expr->cursor);
             if (stmnt.kind == SkVarDecl) {
                 expr->type = stmnt.vardecl.type;
                 break;
@@ -1020,6 +1039,10 @@ void sema_expr(Sema *sema, Expr *expr) {
             } else if (stmnt.kind == SkStructDecl) {
                 assert(stmnt.structdecl.name.kind == EkIdent && ".name is still expected to be Ident");
                 expr->type = type_typedef(stmnt.structdecl.name.ident, TYPEVAR, stmnt.cursor);
+                break;
+            } else if (stmnt.kind == SkFnDecl) {
+                assert(stmnt.fndecl.name.kind == EkIdent && ".name is still expected to be Ident");
+                expr->type = stmnt.fndecl.type;
                 break;
             } else {
                 elog(sema, expr->cursor, "expected \"%s\" to be a variable", expr->ident);
@@ -1130,7 +1153,7 @@ void sema_var_reassign(Sema *sema, Stmnt *stmnt) {
     }
 
     assert(stmnt->varreassign.name.kind == EkIdent);
-    Stmnt decl = symtab_find(sema, stmnt->varreassign.name.ident, stmnt->cursor);
+    Stmnt decl = symtab_find(sema, stmnt->varreassign.name, stmnt->cursor);
     if (decl.kind == SkVarDecl) {
         stmnt->varreassign.type = decl.vardecl.type;
     } else if (decl.kind == SkConstDecl) {
@@ -1562,7 +1585,7 @@ void sema_fn_decl(Sema *sema, Stmnt *stmnt) {
         }
 
         if (arg->constdecl.type.kind == TkTypeDef) {
-            Stmnt found = symtab_find(sema, arg->constdecl.type.typedeff, arg->constdecl.type.cursor);
+            Stmnt found = symtab_find(sema, expr_ident(arg->constdecl.type.typedeff, type_none(), arg->constdecl.type.cursor), arg->constdecl.type.cursor);
             if (found.kind == SkNone) {
                 continue;
             }

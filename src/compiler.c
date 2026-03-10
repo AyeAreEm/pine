@@ -52,7 +52,7 @@ static void compiler_invoke_cc(Compiler *compiler) {
     //     strbprintf(&com, " %s", flags.links[i]);
     // }
 
-    debug("%s", com);
+    // debug("%s", com);
     FILE *fd = popen(com, "r");
     if (fd == NULL) {
         comp_elog("failed to compile");
@@ -139,6 +139,10 @@ void compiler_build(Compiler *compiler) {
     strbprintf(&compiler->path, ".");
     compiler_import(compiler, compiler->cli.rootfolder);
 
+    // for (size_t i = 0; i < arrlenu(compiler->modules); i++) {
+    //     print_stmnts(compiler->modules[i].ast);
+    // }
+
     Sema sema = sema_init(compiler->modules);
     sema_analyse(&sema);
 
@@ -157,7 +161,7 @@ void compiler_build(Compiler *compiler) {
             char *cwd = get_cwd();
             char *cwd_name = strip_path(cwd);
             compiler->options.output = strdup(cwd_name);
-            debug("%s", compiler->options.output);
+            // debug("%s", compiler->options.output);
             free(cwd);
         } else {
             compiler->options.output = compiler->cli.rootfolder;

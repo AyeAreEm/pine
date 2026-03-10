@@ -69,6 +69,7 @@ uint64_t eval_sizeof(Sema *sema, Type type) {
         case TkNone:
         case TkVoid:
         case TkPoison:
+        case TkModule:
             return 0;
 
         case TkBool:

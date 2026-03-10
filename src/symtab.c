@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include "include/exprs.h"
+#include "include/stmnts.h"
+#include "include/types.h"
 #include "include/utils.h"
 #include "include/sema.h"
 
@@ -14,22 +17,23 @@ SymTab symtab_init(void) {
     return symtab;
 }
 
-Stmnt symtab_find(Sema *sema, const char *key, Cursor cursor) {
-    size_t index = 0;
-    bool found = false;
+Stmnt symtab_find(Sema *sema, Expr key, Cursor cursor) {
+    size_t module_idx = sema->module_idx;
 
-    for (size_t i = 0; i < arrlenu(SEMA_CURRENT_MODULE.symtab.keys[SEMA_CURRENT_MODULE.symtab.cur_scope]); i++) {
-        if (streq(key, SEMA_CURRENT_MODULE.symtab.keys[SEMA_CURRENT_MODULE.symtab.cur_scope][i])) {
-            index = i;
-            found = true;
-            break;
+    // NOTE: might be a little hacky but it works... i think
+    if (key.kind == EkFieldAccess && key.fieldacc.accessing->type.kind == TkModule) {
+        module_idx = key.fieldacc.accessing->type.module->index;
+        key = *key.fieldacc.field;
+    }
+
+    for (size_t i = 0; i < arrlenu(sema->modules[module_idx].symtab.keys[sema->modules[module_idx].symtab.cur_scope]); i++) {
+        if (streq(key.ident, sema->modules[module_idx].symtab.keys[sema->modules[module_idx].symtab.cur_scope][i])) {
+            return sema->modules[module_idx].symtab.stmnts[sema->modules[module_idx].symtab.cur_scope][i];
         }
     }
 
-    if (found) return SEMA_CURRENT_MODULE.symtab.stmnts[SEMA_CURRENT_MODULE.symtab.cur_scope][index];
-
     // if not in symtab, see if it's defined at least
-    Stmnt stmnt = ast_find_decl(SEMA_CURRENT_MODULE.ast, key);
+    Stmnt stmnt = ast_find_decl(sema->modules[module_idx].ast, key.ident);
     if (stmnt.kind != SkNone) return stmnt;
 
     elog(sema, cursor, "use of undefined \"%s\"", key);

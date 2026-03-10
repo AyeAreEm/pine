@@ -1087,6 +1087,11 @@ void gen_var_decl(Gen *gen, Stmnt stmnt) {
 
 void gen_const_decl(Gen *gen, Stmnt stmnt) {
     assert(stmnt.kind == SkConstDecl);
+
+    if (stmnt.constdecl.type.kind == TkModule) {
+        return;
+    }
+
     ConstDecl constdecl = stmnt.constdecl;
 
     strb proto = gen_decl_proto(gen, stmnt);
@@ -1404,6 +1409,8 @@ void gen_for_each(Gen *gen, Stmnt stmnt) {
 void gen_stmnt(Gen *gen, Stmnt *stmnt) {
     switch (stmnt->kind) {
         case SkNone:
+            break;
+        case SkImport:
             break;
         case SkMetadata:
             if (stmnt->metadata.kind == MkFilename) {

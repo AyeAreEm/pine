@@ -7,6 +7,7 @@ Dgraph dgraph_init(void) {
         .children = NULL,
     };
 }
+
 void dgraph_push(Dgraph *graph, Dnode node) {
     bool found = false;
     for (size_t i = 0; i < arrlenu(graph->names); i++) {

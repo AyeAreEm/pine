@@ -2,6 +2,7 @@
 #include "include/strb.h"
 #include "include/types.h"
 #include "include/stmnts.h"
+#include "include/module.h"
 #include "include/utils.h"
 #include <stdio.h>
 
@@ -170,6 +171,15 @@ Expr expr_arrayslice(ArraySlice v, Type t, Cursor cursor) {
     };
 }
 
+Expr expr_import(Import v, Cursor cursor) {
+    return (Expr){
+        .kind = EkImport,
+        .cursor = cursor,
+        .type = type_module(v.module),
+        .import = v,
+    };
+}
+
 strb expr_stringify(Expr expr) {
     strb ret = NULL;
 
@@ -283,8 +293,7 @@ strb expr_stringify(Expr expr) {
             break;
         }
         case EkImport: {
-            // TODO: do this properly
-            strbprintf(&ret, "Import");
+            strbprintf(&ret, "Import \"%s\"", expr.import.module->path);
             break;
         }
         case EkUnop: {

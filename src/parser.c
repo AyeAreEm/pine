@@ -71,36 +71,6 @@ Expr expr_from_keyword(Parser *parser, Keyword kw) {
     }
 }
 
-static Directive directive_map(const char *str) {
-    if (streq(str, "import")) {
-        return (Directive){.kind = DkImport};
-    }
-
-    return (Directive){.kind = DkNone};
-}
-
-Directive parser_get_directive(Parser *parser, const char *word) {
-    Directive d = directive_map(word);
-
-    if (d.kind == DkNone) {
-        elog(parser, parser->cursor, "\"#%s\" is not a directive", word);
-    }
-
-    return d;
-}
-
-Parser parser_init(Arr(Token) tokens, const char *filename) {
-    return (Parser){
-        .tokens = tokens,
-        .cursor = tokens[0].cursor,
-        .in_func_decl_args = false,
-        .in_enum_decl = false,
-
-        .filename = filename,
-        .error_count = 0,
-    };
-}
-
 Token peek(Parser *parser) {
     if (arrlen(parser->tokens) == 0) {
         return token_none();
@@ -139,6 +109,73 @@ Token expect(Parser *parser, TokenKind expected) {
     }
 
     return tok;
+}
+
+static Directive directive_map(const char *str) {
+    if (streq(str, "import")) {
+        return (Directive){.kind = DkImport};
+    }
+
+    return (Directive){.kind = DkNone};
+}
+
+Directive parser_get_directive(Parser *parser, const char *word) {
+    Directive d = directive_map(word);
+
+    if (d.kind == DkNone) {
+        elog(parser, parser->cursor, "\"#%s\" is not a directive", word);
+    }
+
+    return d;
+}
+
+Directive parse_directive(Parser *parser, Token tok, bool expect_semicolon) {
+    assert(tok.kind == TokDirective);
+
+    Directive directive = parser_get_directive(parser, tok.string);
+
+    switch (directive.kind) {
+        case DkImport: {
+            tok = expect(parser, TokStrLit);
+            if (expect_semicolon) {
+                expect(parser, TokSemiColon);
+            }
+            directive.str = tok.string;
+        } break;
+        default:
+            if (expect_semicolon) {
+                expect(parser, TokSemiColon);
+            }
+            break;
+    }
+
+    return directive;
+}
+
+
+Module *parser_import_module(Parser *parser, Directive directive) {
+    char *folder = strip_filename(parser->filename);
+    strb path = NULL; strbprintf(&path, "%s/%s", folder, directive.str);
+    free(folder);
+
+    Module *module = modules_find(parser->modules, path);
+    if (module == NULL) {
+        elog(parser, parser->cursor, "cannot find module %s with path %s", directive.str, path);
+    }
+
+    return module;
+}
+
+Parser parser_init(Arr(Token) tokens, const char *filename) {
+    return (Parser){
+        .tokens = tokens,
+        .cursor = tokens[0].cursor,
+        .in_func_decl_args = false,
+        .in_enum_decl = false,
+
+        .filename = filename,
+        .error_count = 0,
+    };
 }
 
 typedef enum IdentifersKind {
@@ -494,7 +531,22 @@ Expr parse_primary(Parser *parser) {
             expect(parser, TokRightBracket);
 
             return expr_group(expr, type_none(), cursor);
-        } break;
+        }
+        case TokDirective: {
+            next(parser);
+            Directive directive = parse_directive(parser, tok, false);
+
+            if (directive.kind == DkImport) {
+                Module *module = parser_import_module(parser, directive);
+
+                return expr_import((Import){
+                    .module = module,
+                }, parser->cursor);
+            } else {
+                elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
+                return expr_none();
+            }
+        }
         default:
             elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
             return expr_none();
@@ -1079,6 +1131,8 @@ Expr parse_array_index(Parser *parser, Expr expr) {
     } else if (tok.kind == TokLeftSquare) {
         next(parser);
         return parse_array_index(parser, arrindex);
+    } else if (tok.kind == TokLeftBracket) {
+        return parse_fn_call(parser, arrindex);
     }
 
     return arrindex;
@@ -1124,6 +1178,8 @@ Expr parse_field_access(Parser *parser, Expr expr) {
     } else if (tok.kind == TokLeftSquare) {
         next(parser); // already checked if none
         return parse_array_index(parser, fa);
+    } else if (tok.kind == TokLeftBracket) {
+        return parse_fn_call(parser, fa);
     }
 
     return fa;
@@ -1374,7 +1430,7 @@ Stmnt parse_const_decl(Parser *parser, Expr ident, Type type) {
 
     // <ident>: <type?> : ;
     if (expr.kind == EkNone) {
-        elog(parser, cursor, "expected expression after \":\" in variable declaration");
+        elog(parser, cursor, "expected expression after \":\" in const declaration");
         return parse_next_stmnt(parser);
     }
 
@@ -1482,17 +1538,30 @@ Stmnt parse_ident(Parser *parser, Expr ident) {
     if (tok.kind == TokNone) return stmnt_none();
     
     // <ident>. OR <ident>[
+    bool more_than_single_ident = false;
     if (tok.kind == TokDot) {
+        more_than_single_ident = true;
         next(parser); // already checked if none
-        Expr reassigned = parse_field_access(parser, ident);
+        Expr fa = parse_field_access(parser, ident);
+
+        if (fa.kind == EkFnCall) {
+            expect(parser, TokSemiColon);
+            return stmnt_fncall(fa.fncall, fa.cursor);
+        }
 
         tok = peek(parser);
         if (tok.kind == TokNone) return stmnt_none();
 
-        return parse_possible_assignment(parser, reassigned, true);
+        return parse_possible_assignment(parser, fa, true);
     } else if (tok.kind == TokLeftSquare) {
+        more_than_single_ident = true;
         next(parser);
         Expr arrindex = parse_array_index(parser, ident);
+
+        if (arrindex.kind == EkFnCall) {
+            expect(parser, TokSemiColon);
+            return stmnt_fncall(arrindex.fncall, arrindex.cursor);
+        }
 
         tok = peek(parser);
         if (tok.kind == TokNone) return stmnt_none();
@@ -1514,7 +1583,7 @@ Stmnt parse_ident(Parser *parser, Expr ident) {
             return stmnt;
         }
         case TokSemiColon:
-            if (!parser->in_enum_decl) {
+            if (!(parser->in_enum_decl || more_than_single_ident)) {
                 elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
                 return parse_next_stmnt(parser);
             }
@@ -1841,26 +1910,6 @@ condition: {}
     }, cursor);
 }
 
-Stmnt parse_directive(Parser *parser, Token tok) {
-    assert(tok.kind == TokDirective);
-
-    Directive directive = parser_get_directive(parser, tok.string);
-    Stmnt d = stmnt_directive(directive, parser->cursor);
-
-    switch (directive.kind) {
-        case DkImport: {
-            tok = expect(parser, TokStrLit);
-            expect(parser, TokSemiColon);
-            d.directive.str = tok.string;
-        } break;
-        default:
-            expect(parser, TokSemiColon);
-            break;
-    }
-
-    return d;
-}
-
 Stmnt parser_parse(Parser *parser) {
     Token tok = peek(parser);
     if (tok.kind == TokNone) return stmnt_none();
@@ -1904,22 +1953,15 @@ Stmnt parser_parse(Parser *parser) {
         } break;
         case TokDirective:
             next(parser);
-            Stmnt stmnt = parse_directive(parser, tok);
-            if (stmnt.directive.kind == DkImport) {
-                char *folder = strip_filename(parser->filename);
-                strb path = NULL; strbprintf(&path, "%s/%s", folder, stmnt.directive.str);
-                free(folder);
-
-                Module *module = modules_find(parser->modules, path);
-                if (module == NULL) {
-                    elog(parser, parser->cursor, "cannot find module %s with path %s", stmnt.directive.str, path);
-                }
+            Directive directive = parse_directive(parser, tok, true);
+            if (directive.kind == DkImport) {
+                Module *module = parser_import_module(parser, directive);
 
                 return stmnt_import((Import){
                     .module = module,
-                }, stmnt.cursor);
+                }, parser->cursor);
             }
-            return stmnt;
+            return stmnt_directive(directive, parser->cursor);
         default:
             next(parser);
             elog(parser, parser->cursor, "unexpected token %s", tokenkind_stringify(tok.kind));
@@ -1940,10 +1982,10 @@ void parser_import_pass(Compiler *compiler, Parser parser) {
     for (Token tok = next(&parser); tok.kind != TokNone; tok = next(&parser)) {
         if (tok.kind != TokDirective) continue;
 
-        Stmnt stmnt = parse_directive(&parser, tok);
-        if (stmnt.directive.kind != DkImport) continue;
+        Directive directive = parse_directive(&parser, tok, true);
+        if (directive.kind != DkImport) continue;
 
-        compiler_import(compiler, stmnt.directive.str);
+        compiler_import(compiler, directive.str);
     }
 
     arrfree(parser.tokens);

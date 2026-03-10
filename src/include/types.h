@@ -9,6 +9,7 @@
 
 typedef struct Type Type;
 typedef struct Expr Expr;
+typedef struct Module Module;
 
 typedef enum TypeKind {
     TkNone,
@@ -49,6 +50,8 @@ typedef enum TypeKind {
     TkTypeDef,
     TkTypeId,
 
+    TkModule,
+
     TkPoison,
 } TypeKind;
 
@@ -77,6 +80,7 @@ typedef struct Type {
     bool constant;
 
     union {
+        Module *module;
         Range range;
         Slice slice;
         Array array;
@@ -106,6 +110,7 @@ Type type_array(Array v, CONSTNESS constant, Cursor cursor);
 Type type_ptr(Type *v, CONSTNESS constant, Cursor cursor);
 Type type_option(Option v, CONSTNESS constant, Cursor cursor);
 Type type_typedef(const char *v, CONSTNESS constant, Cursor cursor);
+Type type_module(Module *module);
 Type type_poison(void);
 
 #endif // TYPES_H

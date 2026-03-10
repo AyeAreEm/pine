@@ -116,6 +116,13 @@ Type type_poison(void) {
     };
 }
 
+Type type_module(Module *module) {
+    return (Type){
+        .kind = TkModule,
+        .module = module,
+    };
+}
+
 Type type_from_string(const char *t) {
     if (streq(t, "void")) {
         return (Type){.kind = TkVoid};
@@ -151,6 +158,8 @@ Type type_from_string(const char *t) {
         return (Type){.kind = TkF32};
     } else if (streq(t, "f64")) {
         return (Type){.kind = TkF64};
+    } else if (streq(t, "module")) {
+        return (Type){.kind = TkModule};
     }
 
     return (Type){.kind = TkNone};
@@ -261,6 +270,9 @@ strb string_from_type(Type t) {
             break;
         case TkIsize:
             strbprintf(&ret, "isize");
+            break;
+        case TkModule:
+            strbprintf(&ret, "module");
             break;
     }
 
