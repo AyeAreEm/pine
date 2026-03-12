@@ -5,8 +5,6 @@ test
 test.exe
 test.dSYM/
 
-test/
-
 output.c
 output.h
 
