@@ -20,6 +20,10 @@ typedef SSIZE_T ssize_t;
 #define getcwd _getcwd
 #endif
 
+#if defined (__APPLE__)
+#include <sys/syslimits.h>
+#endif
+
 #define TERM_RED     "\x1b[31m"
 #define TERM_GREEN   "\x1b[32m"
 #define TERM_YELLOW  "\x1b[33m"
