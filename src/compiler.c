@@ -113,6 +113,9 @@ void compiler_import(Compiler *compiler, const char *path) {
 
         Lexer lex = lexer(content);
         free(content); // NOTE: all strings are heap allocated from content during lexing, so it is fine to free here
+        if (arrlenu(lex.tokens) == 0) {
+            continue;
+        }
 
         Parser parser = parser_init(lex.tokens, files[i]);
         parser_import_pass(compiler, parser);
