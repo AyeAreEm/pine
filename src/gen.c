@@ -450,6 +450,7 @@ MaybeAllocStr gen_fn_call(Gen *gen, Expr expr) {
     assert(expr.kind == EkFnCall);
 
     strb call = NULL;
+    assert(expr.fncall.name->kind == EkIdent && ".name is still expected to be Ident");
     strbprintf(&call, "%s(", expr.fncall.name->ident);
 
     for (size_t i = 0; i < arrlenu(expr.fncall.args.exprs); i++) {
@@ -1022,10 +1023,12 @@ strb gen_decl_proto(Gen *gen, Stmnt stmnt) {
 
     switch (stmnt.kind) {
         case SkVarDecl:
+            assert(stmnt.vardecl.name.kind == EkIdent && ".name is still expected to be Ident");
             name = stmnt.vardecl.name.ident;
             type = stmnt.vardecl.type;
             break;
         case SkConstDecl:
+            assert(stmnt.constdecl.name.kind == EkIdent && ".name is still expected to be Ident");
             name = stmnt.constdecl.name.ident;
             type = stmnt.constdecl.type;
             break;
